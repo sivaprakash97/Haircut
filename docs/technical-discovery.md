@@ -1,6 +1,6 @@
 # Haircut Playground — Technical Discovery & Architecture Recommendation
 
-Status: **Revision 2.** The stack is approved. The hair representation has changed to **"hair clay"** at your request and awaits approval. No application code has been written.
+Status: **Revision 2, approved.** Hair is "hair clay", sandcastle-style. Milestone 1 is built; see [`m1-report.md`](m1-report.md).
 Date: 2026-10-15
 
 Revision history
