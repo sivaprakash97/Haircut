@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="description" content="Sculpt, cut and style hair made of clay, right in your browser." />
+    <meta name="theme-color" content="#9fd8ff" />
+    <title>Haircut Playground</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M6 22c0-9 5-16 12-16 5 0 8 4 8 9 0 6-5 11-11 11H9a3 3 0 0 1-3-4z' fill='%232f6bff'/%3E%3C/svg%3E" />
+    <style>
+      :root {
+        --ink: #1a1229;
+        --panel: rgba(22, 17, 38, 0.86);
+        --panel-line: rgba(255, 255, 255, 0.1);
+        --text: #f4f1ff;
+        --muted: #b9b2d3;
+        --accent: #ffcf3f;
+        --on: #2f6bff;
+        color-scheme: light;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #fff0d2; }
+      body {
+        font: 14px/1.4 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        color: var(--ink);
+        -webkit-font-smoothing: antialiased;
+      }
+      #scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; outline: none; }
+
+      #loader {
+        position: fixed; inset: 0; display: grid; place-content: center; justify-items: center; gap: 14px;
+        background: linear-gradient(#9fd8ff, #fff0d2); transition: opacity 0.35s ease; z-index: 5;
+      }
+      #loader.done { opacity: 0; pointer-events: none; }
+      #loader svg { width: 88px; height: 88px; animation: squish 1.1s ease-in-out infinite; }
+      #loader p { margin: 0; font-weight: 600; letter-spacing: 0.01em; }
+      #loader.failed svg { animation: none; opacity: 0.4; }
+      @keyframes squish { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.12, 0.88) translateY(4px); } }
+      @media (prefers-reduced-motion: reduce) { #loader svg { animation: none; } }
+
+      .panel-toggle {
+        position: fixed; top: 12px; right: 12px; z-index: 3;
+        font: inherit; font-weight: 600; color: var(--text); background: var(--panel);
+        border: 1px solid var(--panel-line); border-radius: 999px; padding: 8px 14px; cursor: pointer;
+      }
+      .panel {
+        position: fixed; top: 12px; left: 12px; z-index: 2; width: 300px; max-height: calc(100% - 24px); overflow: auto;
+        color: var(--text); background: var(--panel); border: 1px solid var(--panel-line); border-radius: 16px;
+        padding: 14px 14px 10px; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+        box-shadow: 0 10px 30px rgba(26, 18, 41, 0.25);
+      }
+      .panel header h1 { margin: 0; font-size: 18px; letter-spacing: -0.01em; }
+      .panel .tag { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
+      .panel section { margin-top: 14px; }
+      .panel h2 { margin: 0 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+      .seg { display: flex; flex-wrap: wrap; gap: 6px; }
+      .panel button {
+        font: inherit; color: var(--text); background: rgba(255, 255, 255, 0.08); border: 1px solid var(--panel-line);
+        border-radius: 10px; padding: 7px 10px; cursor: pointer; transition: background 0.15s;
+      }
+      .panel button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.16); }
+      .panel button.on { background: var(--on); border-color: transparent; }
+      .panel button:disabled { opacity: 0.5; cursor: default; }
+      .panel button:focus-visible, .panel-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+      .panel button.primary { width: 100%; background: var(--accent); color: var(--ink); font-weight: 700; border-color: transparent; }
+      .bench-result { margin-top: 8px; font-size: 13px; color: var(--muted); }
+      .bench-result p { margin: 0 0 6px; }
+      .bench-result strong { color: var(--text); font-size: 15px; }
+      .stats { margin-top: 12px; border-top: 1px solid var(--panel-line); padding-top: 8px; }
+      .stats summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+      .stats dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; margin: 8px 0 0; font-size: 12px; }
+      .stats dt { color: var(--muted); }
+      .stats dd { margin: 0; overflow-wrap: anywhere; }
+      .hint {
+        position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); margin: 0; z-index: 1;
+        padding: 6px 12px; border-radius: 999px; background: rgba(255, 255, 255, 0.7); font-size: 12px; white-space: nowrap;
+      }
+      .toast {
+        position: fixed; bottom: 52px; left: 50%; transform: translateX(-50%); z-index: 3;
+        padding: 8px 14px; border-radius: 10px; background: var(--panel); color: var(--text); font-weight: 600;
+      }
+      .toast.error { background: #b3203f; }
+      @media (max-width: 700px) {
+        .panel { top: auto; bottom: 12px; left: 12px; right: 12px; width: auto; max-height: 55%; }
+        .hint { display: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="scene" aria-label="3D head with sculptable hair. Drag to rotate, scroll or pinch to zoom."></canvas>
+    <div id="loader" role="status">
+      <svg viewBox="0 0 64 64" aria-hidden="true">
+        <path d="M10 44c0-18 10-32 25-32 11 0 19 8 19 19 0 13-10 21-23 21H17c-4 0-7-3-7-8z" fill="#2f6bff" />
+        <path d="M18 40c2-10 8-18 17-19" stroke="#8fd6ff" stroke-width="4" stroke-linecap="round" fill="none" />
+        <path d="M10 44c0-18 10-32 25-32 11 0 19 8 19 19 0 13-10 21-23 21H17c-4 0-7-3-7-8z" fill="none" stroke="#1a1229" stroke-width="3" />
+      </svg>
+      <p>Mixing hair clay…</p>
+    </div>
+    <div id="ui"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
