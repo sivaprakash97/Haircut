@@ -180,7 +180,8 @@ export class Stage {
     this.draw();
     if (moving) {
       this.lastFrame = now;
-      this.raf = requestAnimationFrame(this.frame);
+      // Only one frame may be pending (a resize may already have scheduled one).
+      if (!this.raf) this.raf = requestAnimationFrame(this.frame);
     } else {
       this.lastFrame = 0;
       this.intervals.length = 0;
@@ -204,7 +205,11 @@ export class Stage {
     }
   }
 
+  /** Number of frames drawn so far (used by tests to catch duplicate render loops). */
+  drawCount = 0;
+
   private draw(): void {
+    this.drawCount++;
     this.look.uCamPos.value.copy(this.camera.position);
     this.renderer.render(this.scene, this.camera);
     this.emitStats(false);
@@ -232,10 +237,10 @@ export class Stage {
   private applyDpr(dpr: number): void {
     this.dpr = dpr;
     this.renderer.setPixelRatio(dpr);
-    this.resize();
+    this.resize(false); // callers draw (or schedule) the next frame themselves
   }
 
-  private resize(): void {
+  private resize(scheduleFrame = true): void {
     const w = this.canvas.clientWidth, h = this.canvas.clientHeight;
     if (!w || !h) return;
     this.renderer.setSize(w, h, false);
@@ -246,7 +251,7 @@ export class Stage {
     this.camera.updateProjectionMatrix();
     this.renderer.getDrawingBufferSize(this.outlineU.uResolution.value);
     this.outlineU.uWidth.value = 2.4 * this.dpr;
-    this.requestRender();
+    if (scheduleFrame) this.requestRender();
   }
 
   private replace(group: Group, geometries: BufferGeometry[], material: ShaderMaterial): void {

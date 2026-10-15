@@ -30,10 +30,10 @@ const store = createStore<AppState>({
 
 declare global {
   interface Window {
-    __haircut?: { ready: boolean; state: () => AppState };
+    __haircut?: { ready: boolean; state: () => AppState; draws: () => number };
   }
 }
-window.__haircut = { ready: false, state: store.get };
+window.__haircut = { ready: false, state: store.get, draws: () => stage?.drawCount ?? 0 };
 
 const canvas = document.getElementById('scene') as HTMLCanvasElement;
 const loader = document.getElementById('loader');

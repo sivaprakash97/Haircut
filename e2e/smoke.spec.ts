@@ -55,3 +55,29 @@ test('fits a phone screen', async ({ page }, info) => {
   await expect(page.getByRole('button', { name: 'Run speed test' })).toBeInViewport();
   await page.screenshot({ path: info.outputPath('phone-controls.png') });
 });
+
+test('draws at most one frame per display frame while rotating', async ({ page }) => {
+  await page.goto('/?preset=spikes&quality=light');
+  await page.waitForFunction(() => window.__haircut?.ready === true, undefined, { timeout: 120_000 });
+  await page.waitForTimeout(600);
+  const before = await page.evaluate(() => {
+    const w = window as unknown as { __ticks: number; __stop: boolean };
+    w.__ticks = 0;
+    w.__stop = false;
+    const tick = () => { w.__ticks++; if (!w.__stop) requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
+    return window.__haircut!.draws();
+  });
+  await page.mouse.move(640, 400);
+  await page.mouse.down();
+  await page.mouse.move(900, 380, { steps: 15 });
+  await page.mouse.up();
+  await page.waitForFunction(() => window.__haircut!.state().frame?.frameMs === 0, undefined, { timeout: 120_000 });
+  const { ticks, after } = await page.evaluate(() => {
+    const w = window as unknown as { __ticks: number; __stop: boolean };
+    w.__stop = true;
+    return { ticks: w.__ticks, after: window.__haircut!.draws() };
+  });
+  expect(after - before).toBeGreaterThan(3);
+  expect(after - before).toBeLessThanOrEqual(ticks + 3);
+});
