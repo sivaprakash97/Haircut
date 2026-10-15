@@ -5,7 +5,7 @@ Date: 2026-10-15
 
 Revision history
 - **R1:** recommended a "lock field": hair as 1,500–3,000 guide curves meshed as tubes. Shelved, because it needs 0.2–0.7 M hair triangles, which is too heavy for mid-range laptops, and because it doesn't feel like clay or sand. It is summarized in §2.2.
-- **R2 (this document):** hair is a sculptable volume of "clay" that can behave like kinetic sand. Adds a loading-time and page-weight budget.
+- **R2 (this document):** hair is a sculptable volume of "clay" that behaves like a sandcastle or kinetic sand. Adds a loading-time and page-weight budget.
 
 ---
 
@@ -13,10 +13,10 @@ Revision history
 
 - **Stack (approved):** TypeScript + Vite + three.js r186 (WebGL 2). One change is recommended: **Preact instead of React** for the UI. It has the same API and is 5 KB instead of 58 KB compressed (measured).
 - **Hair representation: "hair clay".** Hair is a block of virtual clay or sand stored in a 3D grid around the head, at 2.5–4 mm per cell. Every tool adds, removes, moves or paints that material. A fast meshing algorithm (Surface Nets) turns the grid into a smooth surface, and only the small pieces near the brush are rebuilt.
-- **Kinetic-sand behaviour** comes from one per-cell "gel" value:
-  - **Low gel:** after a stroke, unsupported material slumps like sand.
-  - **High gel:** material holds any shape, like clay.
-  - **Cutting through a lock:** the cut-off piece falls away.
+- **Sandcastle / kinetic-sand behaviour** comes from one per-cell "hold" value:
+  - **Default (packed):** material holds sculpted shapes like a sandcastle or clay. Carving and cutting leave crisp edges and shed a few crumbs.
+  - **Low hold:** overhangs that are too thin or stick out too far crumble and slump.
+  - **Cutting through a lock:** the cut-off piece breaks away and falls.
 - **Lightweight by design:**
   - **GPU:** 45k–125k triangles for the hair, and the scene only redraws when something changes.
   - **CPU:** 1.2–2.9 ms per brush touch, measured.
@@ -80,7 +80,7 @@ A grid covers the head and the space hair can occupy (about 32 × 40 × 32 cm). 
 | `shape` | 1 byte (quantized signed distance) | How far the cell is inside or outside the clay. The surface is where this crosses zero. |
 | `color` | 2 bytes (RGB565) | Dye. |
 | `style` | 1 byte | Hair type: straight, wavy, curly, afro or spiky, plus intensity. |
-| `gel` | 1 byte | 0 = loose sand that slumps; 255 = stiff clay that holds spikes and overhangs. |
+| `hold` | 1 byte | How firmly the material keeps its shape. Low = dry sand that crumbles and slumps. High (default) = packed sandcastle/clay that holds spikes and overhangs. |
 | `flow` | 2 bytes, optional | The direction the material was last combed. Drives groove and wave detail. |
 
 At 3 mm cells that's about 1.6 M cells, or **~8–11 MB in memory**. Plus:
@@ -112,12 +112,15 @@ Small surface detail adds no geometry cost. It comes from the shader and a sligh
 - ridges for wavy hair
 - lumps for curly or afro hair
 
-### 3.3 Kinetic-sand / clay behaviour
+### 3.3 Sandcastle / clay behaviour
 
-- **Settle:** after each stroke, unsupported low-gel material near the brush slides down until it rests on the scalp or on other material (angle of repose). This takes ~1–3 ms in the local area.
+- **Holds by default:** packed material keeps whatever shape you sculpt, like a sandcastle. Nothing slumps unless it is unsupported.
+- **Crumble:** carving and cutting shed a few cheap grain particles at the cut edge, so cuts feel like slicing packed sand.
+- **Settle:** after each stroke, overhangs near the brush that are too thin, or stick out too far for their `hold` value, crumble and slide down until they rest on the scalp or on other material (angle of repose). This takes ~1–3 ms in the local area.
 - **Detach and fall:** when a stroke ends, a flood fill finds any clay that is no longer connected to the scalp, for example a ponytail cut at its base. That piece is removed from the grid and drops as a falling chunk effect. This takes ~10–40 ms once per stroke, in the worker.
 - **Fluid-but-solid feel:** the comb and smudge tools carry material along the drag, then lightly smooth it, like surface tension. Material flows, but it keeps its volume and holds its new shape.
-- **Gel and water tools:** "hair gel" raises `gel` so spikes hold; "water spray" lowers it so hair flops and slumps. This makes the sand/clay spectrum a playful mechanic instead of a hidden setting.
+- **Hold tools:** "hair gel / spray" raises `hold` so tall spikes and overhangs survive. A "hair dryer" lowers it, so the area loosens, crumbles and fluffs out. This makes the sandcastle/clay spectrum a playful mechanic instead of a hidden setting.
+- **Look:** an optional subtle sand-grain texture in the toon shader. Whether it stays on is decided in the M1 look test.
 
 ### 3.4 Tools
 
@@ -131,7 +134,7 @@ Small surface detail adds no geometry cost. It comes from the shader and a sligh
 | **Hair grower** | Adds material outward from the scalp under the brush. The new material inherits the region's `style`, so growing curly hair grows curly. |
 | **Extrude** | Pulls a tapered tongue of clay from the surface toward the pointer to make spikes, locks and tails. |
 | **Curl** | Paints `style` = curly with increasing intensity. Larger intensities also bulge the volume. |
-| **Flamethrower** | Erodes material with noise, chars the colour, makes it crispy (gel up), and spawns embers and smoke particles. |
+| **Flamethrower** | Erodes material with noise, chars the colour, makes it crispy (hold up), and spawns embers and smoke particles. |
 
 ### 3.5 Hair-type transformations (local, geometric)
 
@@ -252,7 +255,7 @@ Targets:
 | 3 | **Smudge drift:** repeated combing slowly gains or loses volume, or blurs detail | Medium | Medium | Local re-distancing, a volume-preserving smudge, adjustable smoothing | M2 tests |
 | 4 | **Latency with big brushes:** cost grows with brush volume | Medium | Low | Worker, one update per frame, brush-size cap, Light preset | M2 |
 | 5 | **Accessories drifting** on a changing surface | Medium | Low | Move anchors with edits, snap them to the surface, detach-and-fall rule | M5 |
-| 6 | **Sand feel needs tuning** (too floppy or too stiff) | High | Low | Gel/water tools expose it as gameplay; presets | M2 |
+| 6 | **Sandcastle feel needs tuning** (too crumbly or too stiff) | High | Low | Gel and hair-dryer tools expose it as gameplay; presets | M2 |
 | 7 | **Integrated-GPU fill rate** at high-DPI resolutions with outlines | Low–Med | Medium | Resolution scaling, cheapest outline, render on demand | M1 perf check |
 | 8 | AI-written geometry code subtly wrong | High | Medium | Headless engine + invariant/fuzz tests + screenshot tests | Continuous |
 
@@ -274,7 +277,7 @@ Targets:
   - **Scissors:** cut, with detached pieces falling.
   - **Comb/smudge:** material flows along the drag.
   - **Extrude/grow:** adds material and pulls spikes.
-  - **Gel/water:** sand ↔ clay settle behaviour.
+  - **Gel / hair dryer:** packed ↔ crumbly hold behaviour.
 - Undo, redo and reset with brick snapshots; invariant and fuzz tests.
 - **Exit:**
   - No dropped frames while brushing on your laptop.
