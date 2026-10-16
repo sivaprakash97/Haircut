@@ -115,7 +115,6 @@ ${lockVertex}
 varying vec3 vN;
 varying vec3 vW;
 varying vec4 vC;
-varying float vHold;
 void main() {
   vec3 P, N; float along; vec4 la, lb;
   lockVertex(P, N, along, la, lb);
@@ -123,7 +122,6 @@ void main() {
   vN = N;
   // Darker toward the roots, where the hair is packed: depth without real shadows.
   vC = vec4(lb.rgb, mix(0.6, 1.0, smoothstep(0.0, 0.06, along)));
-  vHold = la.w;
   gl_Position = projectionMatrix * viewMatrix * vec4(P, 1.0);
 }`;
 

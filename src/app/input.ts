@@ -15,7 +15,7 @@ export interface BrushSettings {
 
 /** Cursor colour per tool. */
 export const TOOL_COLORS: Record<ToolId, number> = {
-  scissors: 0xff4d6d, clippers: 0xb98cff, comb: 0x7cc6ff, grow: 0x6be38a, extrude: 0xffc43d, gel: 0x6fe7ff, dryer: 0xffa36b,
+  scissors: 0xff4d6d, clippers: 0xb98cff, comb: 0x7cc6ff, grow: 0x6be38a, extrude: 0xffc43d,
 };
 
 /** Scissors use a thin blade, not the brush size. */

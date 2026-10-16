@@ -145,10 +145,10 @@ describe('physics', () => {
     expect(inside).toBe(0);
   });
 
-  it('gelled hair holds its shape; loose hair hangs', () => {
+  it('hair set firmly (as Extrude leaves it) holds its shape; loose hair hangs', () => {
     const L = fresh();
     const s = new HairSession(L, body);
-    // Point one lock and its neighbour straight out from the head, gel only one.
+    // Point one lock and its mirror twin straight out from the head, set only one.
     const pick = [...Array(L.count).keys()].find((i) => L.kind[i] === 0 && L.root[i * 3 + 1] > 0.1)!;
     const other = L.mirror[pick];
     for (const i of [pick, other]) {
@@ -219,7 +219,7 @@ describe('tools', () => {
     expect(shaved.some((i) => L.blunt[i] < 1)).toBe(true); // regrown hair has natural tips again
   });
 
-  it('extrude pulls hair out (growing it to reach) and gels it so it stays', () => {
+  it('extrude pulls hair out (growing it to reach) and sets it so it stays', () => {
     const L = fresh();
     const s = new HairSession(L, body);
     settle(s);
@@ -233,21 +233,25 @@ describe('tools', () => {
     expect(s.totalLength()).toBeGreaterThan(length);
   });
 
-  it('gel stiffens hair; the dryer blows it around and loosens gel', () => {
+  it('extruded spikes stay out when the chair spins', () => {
     const L = fresh();
     const s = new HairSession(L, body);
     settle(s);
-    stroke(s, 'gel', [[0.04, 0.08, 0.09], [0.05, 0.06, 0.09]], { radius: 0.025, frames: 30 });
-    const gelled = [...Array(L.count).keys()].filter((i) => L.hold[i] > 0.5);
-    expect(gelled.length).toBeGreaterThan(3);
-    const before = s.sim.pos.slice();
-    stroke(s, 'dryer', [[0.0, -0.07, 0.1]], { radius: 0.03, frames: 40 });
-    let moved = 0;
-    for (let i = 0; i < before.length; i++) moved = Math.max(moved, Math.abs(s.sim.pos[i] - before[i]));
-    expect(moved).toBeGreaterThan(0.01);
-    expect(s.sim.winds.length).toBe(0); // the air stops when the button is released
-    stroke(s, 'dryer', [[0.045, 0.07, 0.1]], { radius: 0.03, frames: 60 });
-    expect(Math.min(...gelled.map((i) => L.hold[i]))).toBeLessThan(0.9);
+    stroke(s, 'extrude', [[0.02, 0.125, 0.0], [0.03, 0.2, 0.0], [0.04, 0.27, 0.0]], { radius: 0.02, frames: 16 });
+    settle(s, 600);
+    const pulled = [...Array(L.count).keys()].filter((i) => L.hold[i] > 0.85);
+    const headTip = (i: number) => {
+      const [x, y, z] = tip(s, i), c = s.sim.cos, sn = s.sim.sin;
+      return [c * x - sn * z, y, sn * x + c * z];
+    };
+    const before = pulled.map(headTip);
+    for (let k = 0; k <= 60; k++) {
+      s.sim.setYaw((k / 60) * Math.PI);
+      s.step();
+    }
+    settle(s, 900);
+    const moved = pulled.map((i, n) => Math.hypot(...headTip(i).map((v, a) => v - before[n][a])));
+    expect(Math.max(...moved)).toBeLessThan(0.02);
   });
 });
 
@@ -257,7 +261,7 @@ describe('history', () => {
     settle(s);
     const start = s.checksum();
     const rand = mulberry32(3);
-    const tools: ToolId[] = ['scissors', 'clippers', 'comb', 'grow', 'extrude', 'gel', 'dryer'];
+    const tools: ToolId[] = ['scissors', 'clippers', 'comb', 'grow', 'extrude'];
     const sums: number[] = [];
     for (let k = 0; k < 21; k++) {
       const tool = tools[k % tools.length];

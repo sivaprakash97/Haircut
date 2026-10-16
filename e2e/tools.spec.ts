@@ -53,8 +53,6 @@ test('every tool changes the hair, and undo restores it exactly', async ({ page 
     ['Comb', [[0, 0.075, 0.115], [0, 0.12, 0.06], [0, 0.135, 0]]],
     ['Grow', [[0.085, -0.01, 0.06], [0.086, -0.012, 0.06]], 800],
     ['Extrude', [[0.03, 0.11, 0.05], [0.04, 0.16, 0.05], [0.05, 0.2, 0.05]]],
-    ['Gel', [[0.06, 0.04, 0.09], [0.062, 0.035, 0.09]], 400],
-    ['Dryer', [[0, -0.08, 0.1], [0.004, -0.08, 0.1]], 600],
   ];
   let prev = start.checksum;
   for (const [i, [label, pts, holdMs]] of steps.entries()) {

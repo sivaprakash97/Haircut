@@ -1,6 +1,6 @@
 # Haircut Playground
 
-A browser-based 3D salon toy. You start with an overgrown head of hair and a full beard, made of chunky cartoon locks that hang, swing and settle, and you cut, buzz, comb, grow, pull and gel them into a style. It's cel-shaded and outlined, in a Jet Set Radio–inspired look.
+A browser-based 3D salon toy. You start with an overgrown head of hair and a full beard, made of chunky cartoon locks that hang, swing and settle, and you cut, buzz, comb, grow and pull them into a style. It's cel-shaded and outlined, in a Jet Set Radio–inspired look.
 
 Status: **Milestone 3.** Design and plan: [`docs/technical-discovery.md`](docs/technical-discovery.md) (Revision 3: hair locks). Progress reports: [`docs/m3-report.md`](docs/m3-report.md) (current), [`docs/m1-report.md`](docs/m1-report.md) and [`docs/m2-report.md`](docs/m2-report.md) (the earlier hair-clay prototype).
 
@@ -14,8 +14,6 @@ Status: **Milestone 3.** Design and plan: [`docs/technical-discovery.md`](docs/t
 | 4 | Comb | Drag hair the way you want it to lie |
 | 5 | Grow | Hold to grow hair longer, also on bare scalp |
 | 6 | Extrude | Grab and pull hair out; it stays (spikes, flicks) |
-| 7 | Gel | Freeze hair in its current shape (with shine) |
-| 8 | Dryer | Blow hair around; it sets the way it was blown |
 
 `[` `]` brush size · `M` mirror left/right · Ctrl/⌘+Z undo · Shift+Ctrl/⌘+Z redo
 
@@ -28,7 +26,7 @@ npm run dev        # http://localhost:5173
 
 URL options, handy for sharing a setup:
 - `?quality=light|standard|high`
-- `&tool=view|scissors|clippers|comb|grow|extrude|gel|dryer`
+- `&tool=view|scissors|clippers|comb|grow|extrude`
 - `&mirror=1`, `&outline=0`, `&ao=0`
 - `&yaw=0`: start facing the camera (radians)
 
@@ -47,7 +45,7 @@ npx vitest run --config research/bench/vitest.config.ts --silent=false   # tool 
 | Part | Where |
 |---|---|
 | Lock data, collision body, starting hair (roots, overgrown drape) and where hair grows | `src/hair/locks.ts`, `body.ts`, `generate.ts`, `regions.ts` |
-| Physics: inextensible chains with gravity, styled rest shape, gel stiffness, collisions, sleep | `src/hair/sim.ts` |
+| Physics: inextensible chains with gravity, styled rest shape, hold stiffness, collisions, sleep | `src/hair/sim.ts` |
 | Tools, picking, cut-off pieces, undo/redo/reset | `src/hair/session.ts`, `debris.ts`, `history.ts` |
 | Head mesh and collision grid (signed distances + Surface Nets), built in two Web Workers | `src/engine/` |
 | Pointer input: tool vs. spinning the chair, one stroke update per frame | `src/app/input.ts` |

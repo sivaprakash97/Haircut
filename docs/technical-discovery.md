@@ -15,12 +15,13 @@ Revision history
 ### What the user asked for
 - **Starting hair:** one overgrown head of long hair and a full beard to cut, comb and shape like a salon toy, with no preset hairstyles.
 - **Look:** chunky cartoon locks: thick, tapered clumps with outlines (Jet Set Radio / anime). They must stay light enough for the low-end laptop (ASUS FX505GE).
-- **Movement:** gravity and gentle sway. Long hair hangs and swings when the head turns; gel locks a shape in place; the dryer blows hair around.
+- **Movement:** gravity and gentle sway. Long hair hangs and swings when the head turns.
+- **Later change:** after trying M3, the user asked to remove the Gel and Dryer tools (and the gel shine). Extrude keeps its own firm set.
 
 ### Representation
 - **Locks:** about 600 locks (about 360 on the scalp, 230 in the beard).
   - Each is a chain of up to 21 nodes, with 1.6 cm segments on the scalp (32 cm maximum) and 0.9 cm in the beard.
-  - Per lock: a root just under the skin, a radius, a colour, a **hold** (0 = loose, 1 = gelled), a **bluntness** (cut end vs. natural tip), and a **rest shape**, which is the styled shape it settles into.
+  - Per lock: a root just under the skin, a radius, a colour, a **hold** (0 = loose, 1 = keeps its shape firmly), a **bluntness** (cut end vs. natural tip), and a **rest shape**, which is the styled shape it settles into.
 - **Root placement:**
   - Roots are spread over the scalp and beard areas by Poisson-disk sampling of the head surface. The areas are defined by a hairline and a cheek line, with the lips and ears kept clear.
   - Roots are mirrored, so Mirror strokes act on matching locks.
@@ -32,7 +33,7 @@ Revision history
 ### Physics (main thread, fixed 60 Hz)
 - **Chains:**
   - Each lock is an inextensible "follow-the-leader" chain (Müller et al. 2012) with its velocity correction (damping 0.5). It falls under gravity with air drag.
-  - Each node is pulled back toward its rest shape: firmly at the root, so hair lifts off the scalp before it falls, and softly at the tip, so it swings. Gel raises the pull on every node to 0.45 per step.
+  - Each node is pulled back toward its rest shape: firmly at the root, so hair lifts off the scalp before it falls, and softly at the tip, so it swings. Hold raises the pull on every node toward 0.45 per step.
 - **Collisions:**
   - Locks collide with the head, neck and shoulders through a 6 mm signed-distance grid built in a worker.
   - Locks rooted higher keep further from the skin (layered offsets), which gives the hair volume without lock-to-lock collisions.
@@ -69,9 +70,7 @@ Revision history
 | Clippers | Cuts hair where it touches, and buzzes everything rooted under the brush to the guard length. |
 | Comb | Locks the teeth pass through are held. Each is laid from its root to the held point on an arc, wrapped over the skin, and the rest trails behind. The held point slides along the lock as the comb moves away, until the tip slips out. Combing leaves a light set (hold 0.2–0.45 with strength). |
 | Grow | Lengthens locks under the brush (or rooted under it on bare skin), continuing their direction. Cut ends regrow natural tips. |
-| Extrude | Same held-lock mechanism as the comb, but the lock grows to reach the pointer, and is gelled (hold 0.9) on release. |
-| Gel | Raises hold, and freezes the current shape as the rest shape. |
-| Dryer | An air beam along the pointer ray, with turbulence, shielded by the head. While it blows, the rest shape slowly takes the blown shape and gel loosens. |
+| Extrude | Same held-lock mechanism as the comb, but the lock grows to reach the pointer, and is set firmly (hold 0.9) on release. |
 
 **History:** each stroke saves the style of every lock it touches, before and after (rest shape, length, hold, bluntness, colour). Undo and redo restore exact values; Reset is one undoable step. History is capped at 48 MB.
 
@@ -84,7 +83,7 @@ Revision history
 - The hair-clay engine: grid editing, brick undo and the preset hairstyles.
 
 ### Risks and next steps
-- **Lock-to-lock collisions** are not simulated. A comb or the dryer can push one lock through another. If this bothers users, a cheap fix is a coarse density grid.
+- **Lock-to-lock collisions** are not simulated. The comb can push one lock through another. If this bothers users, a cheap fix is a coarse density grid.
 - **Low-end GPU:** the triangle count is about 2–6× that of the clay prototype. The ASUS speed test is still needed; the next lever is fewer rings on Light.
 - **Custom character models** (M7) will need scalp and beard masks: painted, or derived from the hairline the way `src/hair/regions.ts` does.
 - **Hair types** (curly, wavy, afro, spiky) map naturally to the rest shape: helical offsets, kinks and stiffness. Dye maps to per-lock colour. Braids and beads attach to lock nodes.

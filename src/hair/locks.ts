@@ -37,7 +37,7 @@ export interface LockData {
   rest: Float32Array;
   /** Visible length in segments (fractional). */
   len: Float32Array;
-  /** 0 = loose, 1 = fully gelled. */
+  /** How firmly the lock keeps its styled shape: 0 = loose (hangs and swings), 1 = holds it (extruded spikes). */
   hold: Float32Array;
   /** 1 when the end was cut flat, 0 for a natural tapered tip (growing it back blends toward 0). */
   blunt: Float32Array;

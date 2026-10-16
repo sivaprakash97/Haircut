@@ -15,8 +15,8 @@ const DAMP = 0.95;
 const DFTL = 0.5;
 /** Share of velocity lost when a node touches the skin. */
 const FRICTION = 0.25;
-/** How strongly fully gelled hair returns to its rest shape each step. */
-const K_GEL = 0.45;
+/** How strongly hair that is fully set (hold 1) returns to its rest shape each step. */
+const K_SET = 0.45;
 /** Average movement (metres per step) below which hair counts as still. */
 const STILL = 1e-5;
 /**
@@ -37,22 +37,6 @@ for (let j = 1; j < NODES; j++) {
   K_BEARD[j] = 0.03 + 0.4 * Math.exp(-(j - 1) / 1.6);
 }
 
-/** Air from the dryer: a beam along a world-space ray. */
-export interface Wind {
-  ox: number;
-  oy: number;
-  oz: number;
-  /** Unit direction the air travels. */
-  dx: number;
-  dy: number;
-  dz: number;
-  radius: number;
-  /** Peak acceleration (m/s²). */
-  accel: number;
-  /** Air stops this far along the ray (the head shields what is behind it). */
-  tMax: number;
-}
-
 export class Sim {
   /** Node positions, world space, NODES × 3 per lock. */
   readonly pos: Float32Array;
@@ -64,8 +48,6 @@ export class Sim {
   yaw = 0;
   private c = 1;
   private s = 0;
-  readonly winds: Wind[] = [];
-  time = 0;
   asleep = false;
   private quiet = 0;
   /** Largest node movement in the last step (metres). */
@@ -134,9 +116,7 @@ export class Sim {
     const L = this.L, pos = this.pos, prev = this.prev, pin = this.pin, body = this.body, old = this.old;
     const rest = L.rest;
     const c = this.c, s = this.s;
-    const g = GRAVITY * STEP * STEP, dt2 = STEP * STEP;
-    const winds = this.winds, nw = winds.length;
-    const time = (this.time += STEP);
+    const g = GRAVITY * STEP * STEP;
     let move2 = 0, sum2 = 0, nodes = 0;
 
     for (let i = 0; i < L.count; i++) {
@@ -160,23 +140,8 @@ export class Sim {
         let px = x + (x - prev[o]) * DAMP;
         let py = y + (y - prev[o + 1]) * DAMP - g;
         let pz = z + (z - prev[o + 2]) * DAMP;
-        for (let w = 0; w < nw; w++) {
-          const a = winds[w];
-          const qx = px - a.ox, qy = py - a.oy, qz = pz - a.oz;
-          const t = qx * a.dx + qy * a.dy + qz * a.dz;
-          if (t < 0 || t > a.tMax) continue;
-          const r2 = qx * qx + qy * qy + qz * qz - t * t, R2 = a.radius * a.radius;
-          if (r2 > R2) continue;
-          const f = a.accel * (1 - r2 / R2) * dt2;
-          // Gusty: a little sideways flutter that differs per lock and node.
-          const tx = Math.sin(time * 17 + i * 1.31 + j * 0.7), ty = Math.sin(time * 13 + i * 0.73 + j * 1.1);
-          const tz = Math.cos(time * 19 + i * 0.57 + j * 0.9);
-          px += f * (a.dx + 0.6 * tx);
-          py += f * (a.dy + 0.6 * ty);
-          pz += f * (a.dz + 0.6 * tz);
-        }
         const lx = rest[o], lz = rest[o + 2];
-        const k = K[j] + (K_GEL - K[j]) * hold;
+        const k = K[j] + (K_SET - K[j]) * hold;
         px += (c * lx + s * lz - px) * k;
         py += (rest[o + 1] - py) * k;
         pz += (-s * lx + c * lz - pz) * k;
@@ -223,7 +188,7 @@ export class Sim {
         }
         const mx = pos[o] - old[o], my = pos[o + 1] - old[o + 1], mz = pos[o + 2] - old[o + 2];
         const m2 = mx * mx + my * my + mz * mz;
-        if (m2 < STICK * STICK && nw === 0) {
+        if (m2 < STICK * STICK) {
           // Undo the tiny move but keep the velocity: at rest the chain's length
           // corrections leave a steady (cancelling) velocity that must survive.
           pos[o] = old[o]; pos[o + 1] = old[o + 1]; pos[o + 2] = old[o + 2];
@@ -240,7 +205,7 @@ export class Sim {
     // Still when the hair as a whole has stopped (a few locks can trade tiny
     // nudges between the skin and their neighbours forever; those freeze too).
     const rms = Math.sqrt(sum2 / Math.max(1, nodes));
-    if (rms < STILL && this.lastMove < 0.0006 && nw === 0) {
+    if (rms < STILL && this.lastMove < 0.0006) {
       if (++this.quiet >= 30) this.asleep = true;
     } else {
       this.quiet = 0;

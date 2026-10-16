@@ -26,17 +26,15 @@ attribute vec4 aColor;
 varying vec3 vN;
 varying vec3 vW;
 varying vec4 vC;
-varying float vHold;
 void main() {
   vec4 w = modelMatrix * vec4(position, 1.0);
   vW = w.xyz;
   vN = normalize(mat3(modelMatrix) * normal);
   vC = aColor;
-  vHold = 0.0;
   gl_Position = projectionMatrix * viewMatrix * w;
 }`;
 
-/** Cel shading shared by skin and hair. vC.a is baked depth shading; vHold (hair) is gel, which adds a wet shine. */
+/** Cel shading shared by skin and hair. vC.a is baked depth shading. */
 export const toonFragment = /* glsl */ `
 uniform vec3 uLightDir;
 uniform vec3 uCamPos;
@@ -46,7 +44,6 @@ uniform float uAO;
 varying vec3 vN;
 varying vec3 vW;
 varying vec4 vC;
-varying float vHold;
 
 void main() {
   vec3 n = normalize(vN);
@@ -56,13 +53,9 @@ void main() {
   float aa = fwidth(ndl) * 1.2 + 0.03;
   float lit = smoothstep(-aa, aa, ndl - 0.03);           // light/shadow terminator
   float hi = smoothstep(0.72 - aa, 0.72 + aa, ndl);      // small highlight band
-  float gel = smoothstep(0.5, 0.95, vHold);           // combed hair is a little set; only gel shines
-  vec3 base = vC.rgb * mix(1.0, 0.9, gel);                // gelled hair looks wet and a touch darker
+  vec3 base = vC.rgb;
   vec3 col = mix(base * uShadowTint, base, lit);
-  col = mix(col, min(base * 1.25 + 0.05, vec3(1.0)), hi * mix(0.45, 0.6, gel));
-  vec3 h = normalize(uLightDir + v);
-  float spec = smoothstep(0.945, 0.965, dot(n, h)) * gel;  // hard-edged toon specular
-  col = mix(col, vec3(1.0), spec * 0.55);
+  col = mix(col, min(base * 1.25 + 0.05, vec3(1.0)), hi * 0.45);
 
   // Baked depth shading (crevices, hair roots).
   col *= mix(1.0, vC.a, uAO);

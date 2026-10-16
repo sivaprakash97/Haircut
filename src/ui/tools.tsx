@@ -72,19 +72,4 @@ export const TOOLS: ToolInfo[] = [
       </>
     ),
   },
-  {
-    id: 'gel', label: 'Gel', color: '#6fe7ff', size: true, strength: true, guard: false,
-    help: 'Brush gel on: hair freezes in its current shape and shines',
-    icon: <path d="M12 3c3.5 4.5 6 7.7 6 11a6 6 0 0 1-12 0c0-3.3 2.5-6.5 6-11ZM9.5 14.5a2.5 2.5 0 0 0 2.5 2.5" />,
-  },
-  {
-    id: 'dryer', label: 'Dryer', color: '#ffa36b', size: true, strength: true, guard: false,
-    help: 'Hold to blow the hair around; it sets the way it was blown',
-    icon: (
-      <>
-        <path d="M3 9a5 5 0 0 1 5-5h7v10H8a5 5 0 0 1-5-5ZM9 14l-1 7h3l1-7" />
-        <path d="M18 6h3M18 9h4M18 12h3" />
-      </>
-    ),
-  },
 ];

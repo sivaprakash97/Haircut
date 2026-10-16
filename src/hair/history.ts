@@ -1,7 +1,7 @@
 import { NODES, type LockData } from './locks';
 
 // Undo and redo for strokes. A stroke copies a lock's style (rest shape,
-// length, gel, cut end, colour) the first time it touches that lock; when the
+// length, hold, cut end, colour) the first time it touches that lock; when the
 // stroke ends the new style is copied too. Undo and redo restore exact values.
 
 const PER_LOCK = NODES * 3 + 4;

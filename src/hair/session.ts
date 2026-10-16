@@ -8,7 +8,7 @@ import { STEP, Sim } from './sim';
 // on the page's main thread (each tool touches a few hundred locks at most,
 // well under a millisecond). No three.js or DOM, so tests run it directly.
 
-export type ToolId = 'scissors' | 'clippers' | 'comb' | 'grow' | 'extrude' | 'gel' | 'dryer';
+export type ToolId = 'scissors' | 'clippers' | 'comb' | 'grow' | 'extrude';
 
 /** World-space ray: origin xyz, unit direction xyz. */
 export type Ray = readonly [number, number, number, number, number, number];
@@ -40,9 +40,7 @@ export interface StrokeInput {
 
 /** Hair grows this fast at full strength (metres per second). */
 const GROW_SPEED = 0.16;
-/** Peak dryer acceleration at full strength (m/s²). */
-const DRYER_ACCEL = 70;
-/** How set freshly combed hair is at full strength (0 loose, 1 gelled). */
+/** How set freshly combed hair is at full strength (0 loose, 1 holds its shape fully). */
 const COMB_SET = 0.45;
 /** Most locks one extrude grabs. */
 const MAX_GRAB = 70;
@@ -207,8 +205,6 @@ export class HairSession {
       case 'comb': this.comb(st, inp, hit); break;
       case 'grow': this.grow(inp, hit); break;
       case 'extrude': this.extrude(st, inp, hit); break;
-      case 'gel': this.gel(inp, hit); break;
-      case 'dryer': this.dryer(inp, hit); break;
     }
     if (inp.phase === 'end') this.endStroke();
     return hit;
@@ -216,9 +212,8 @@ export class HairSession {
 
   private endStroke(): void {
     const st = this.stroke;
-    // Held locks keep their new shape; pulled ones are gelled so they stay out.
+    // Held locks keep their new shape; pulled ones are set firmly so they stay out.
     if (st) for (const h of [...st.held.values()]) this.release(st, h, st.tool === 'extrude' ? 0.9 : st.set);
-    this.sim.winds.length = 0;
     this.history.commit();
     this.stroke = null;
     this.sim.wake();
@@ -635,7 +630,7 @@ export class HairSession {
     }
   }
 
-  /** Adds `by` segments to lock `i`, continuing its direction (drooping a little unless gelled). */
+  /** Adds `by` segments to lock `i`, continuing its direction (drooping a little unless it is set firmly). */
   private lengthen(i: number, by: number): number {
     const L = this.L;
     const len = L.len[i], target = Math.min(NODES - 1, len + by);
@@ -668,7 +663,7 @@ export class HairSession {
   /**
    * Extrude: grab the hair under the pointer and pull. Each lock is laid from
    * its root to where its grabbed point is pulled (growing if it has to reach
-   * further), and on release it is gelled so it stays: spikes, flicks, wings.
+   * further), and on release it is set firmly so it stays: spikes, flicks, wings.
    */
   private extrude(st: Stroke, inp: StrokeInput, hit: Hit | null): void {
     if (inp.phase === 'begin') {
@@ -715,63 +710,5 @@ export class HairSession {
       // Locks at the edge of the brush follow less, so pulls taper into a point.
       st.held.set(f.i, { i: f.i, x, y, z, ox: x, oy: y, oz: z, w: falloff(f.d, radius) * 0.85 + 0.15, mirrored });
     }
-  }
-
-  /** Gel: locks under the brush stiffen where they are, holding their shape (and shine). */
-  private gel(inp: StrokeInput, hit: Hit | null): void {
-    if (!hit) return;
-    const L = this.L;
-    const dt = Math.min(Math.max(inp.dt, 0), 0.05);
-    for (const { p } of this.centres(inp, hit.p)) {
-      const found: { i: number; d: number; t: number }[] = [];
-      this.near(p[0], p[1], p[2], inp.radius, found);
-      for (const { i, d } of found) {
-        const w = falloff(d, inp.radius);
-        if (w <= 0 || L.hold[i] >= 1) continue;
-        this.history.touch(i);
-        L.hold[i] = Math.min(1, L.hold[i] + 3 * dt * (0.3 + 0.7 * inp.strength) * (0.4 + 0.6 * w));
-        this.sim.setRestFromPose(i);
-        this.dirty = true;
-      }
-    }
-  }
-
-  /**
-   * Dryer: blows air along the pointer's ray. Hair flutters and is pushed
-   * away; with time it sets in the blown shape, and any gel loosens.
-   */
-  private dryer(inp: StrokeInput, hit: Hit | null): void {
-    const winds = this.sim.winds;
-    winds.length = 0;
-    if (inp.phase === 'end') return;
-    const dt = Math.min(Math.max(inp.dt, 0), 0.05);
-    const r = inp.ray;
-    const beams: Ray[] = [r];
-    if (hit && this.mirrors(inp, hit.p)) beams.push(this.mirrorRay(r));
-    const L = this.L, pos = this.sim.pos;
-    const radius = inp.radius * 1.6;
-    for (const beam of beams) {
-      const head = this.hitHead(beam);
-      const tMax = head ? head.t + 0.02 : 3;
-      winds.push({ ox: beam[0], oy: beam[1], oz: beam[2], dx: beam[3], dy: beam[4], dz: beam[5], radius, accel: DRYER_ACCEL * (0.3 + 0.7 * inp.strength), tMax });
-      // Hair in the air stream slowly takes the blown shape.
-      for (let i = 0; i < L.count; i++) {
-        const last = lastNode(L.len[i]), b = i * NODES * 3;
-        let w = 0;
-        for (let j = 1; j <= last; j++) {
-          const o = b + j * 3;
-          const qx = pos[o] - beam[0], qy = pos[o + 1] - beam[1], qz = pos[o + 2] - beam[2];
-          const t = qx * beam[3] + qy * beam[4] + qz * beam[5];
-          if (t < 0 || t > tMax) continue;
-          const r2 = qx * qx + qy * qy + qz * qz - t * t;
-          if (r2 < radius * radius) w = Math.max(w, 1 - r2 / (radius * radius));
-        }
-        if (w <= 0) continue;
-        this.history.touch(i);
-        this.sim.setRestFromPose(i, 1, Math.min(1, 1.2 * dt * w));
-        L.hold[i] = Math.max(0, L.hold[i] - 0.8 * dt * w);
-      }
-    }
-    this.sim.wake();
   }
 }
