@@ -26,6 +26,15 @@ Status: **built, needs your on-device check.**
 - Draw calls: 57–97 (hair is grouped into chunks of 4×4×4 bricks).
 - The software GPU here can't say anything about frame rate on real hardware. That's what the speed test on your laptops is for.
 
+## On-device results
+
+| Laptop | Tier | Canvas | Speed test | Ready after | Notes |
+|---|---|---|---|---|---|
+| MacBook Air M5 (Chrome) | High (auto) | 3420×1902 @2x | **60 fps**, slowest 5% 17.6 ms | 2.41 s | Build 317 ms. Downloaded 156 KB. Measured before the load-time fix below. |
+| ASUS FX505GE | — | — | pending | pending | |
+
+**Load-time fix after the first MacBook run.** The hair worker was a second file, fetched only after the main code ran. It's now inlined into the main bundle and starts before WebGL setup, and the hair is requested before the UI renders. On a simulated 120 ms round-trip connection (headless Chromium, cold cache), cold load went from **1.71–2.00 s to 1.43–1.66 s**, with the same 124.5 KB download. "Details" now splits load time into phases, so the next on-device run shows where any remaining time goes.
+
 ## Please check on both laptops
 
 | Laptop | Expected auto tier | What to try |
