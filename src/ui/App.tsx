@@ -17,9 +17,33 @@ export interface AppState {
   build: (BuildStats & { totalMs: number; cellMm: number }) | null;
   frame: FrameStats | null;
   loadMs: number;
+  timing: LoadTiming | null;
   downloadKB: number;
   benchRunning: boolean;
   bench: BenchResult | null;
+}
+
+/** How the time to first usable frame splits up (ms). */
+export interface LoadTiming {
+  /** Navigation start until the HTML arrived (DNS, TLS, server). */
+  pageMs: number;
+  /** HTML arrived until the app code was running (download + parse). */
+  codeMs: number;
+  /** WebGL and scene setup. */
+  setupMs: number;
+  /** Hair request sent until the meshes came back from the worker. */
+  hairMs: number;
+  /** Uploading the meshes and drawing the first frame. */
+  frameMs: number;
+  /** The tab was in the background at some point (browsers pause drawing there). */
+  backgrounded: boolean;
+}
+
+export function timingText(t: LoadTiming): string {
+  const f = (ms: number) => (ms / 1000).toFixed(2);
+  return `page ${f(t.pageMs)} · code ${f(t.codeMs)} · 3D setup ${f(t.setupMs)} · hair ${f(t.hairMs)} · first frame ${f(t.frameMs)}${
+    t.backgrounded ? ' (tab was in the background while loading)' : ''
+  }`;
 }
 
 export interface Actions {
@@ -92,6 +116,7 @@ export function App({ store, actions }: { store: Store<AppState>; actions: Actio
               <Row k="Frame time" v={s.frame && s.frame.frameMs ? `${s.frame.frameMs.toFixed(1)} ms` : 'idle (not drawing)'} />
               <Row k="Hair build" v={s.build ? `${s.build.totalMs.toFixed(0)} ms (shape ${s.build.fieldMs.toFixed(0)}, mesh ${s.build.meshMs.toFixed(0)}, head ${s.build.headMs.toFixed(0)})` : '—'} />
               <Row k="Ready after" v={s.loadMs ? `${(s.loadMs / 1000).toFixed(2)} s` : '—'} />
+              {s.timing && <Row k="Split (s)" v={timingText(s.timing)} />}
               <Row k="Downloaded" v={s.downloadKB ? `${s.downloadKB.toFixed(0)} KB` : 'cached'} />
             </dl>
           </details>
@@ -115,7 +140,7 @@ export function benchText(s: AppState): string {
     `Canvas: ${b.width}×${b.height} @${b.dpr.toFixed(2)}x`,
     `Result: ${b.avgFps.toFixed(0)} fps average, slowest 5% of frames ${b.p95Ms.toFixed(1)} ms`,
     `Triangles drawn: ${fmtK(b.triangles)}`,
-    `Ready after ${(s.loadMs / 1000).toFixed(2)} s · build ${s.build?.totalMs.toFixed(0)} ms · downloaded ${s.downloadKB.toFixed(0)} KB`,
+    `Ready after ${(s.loadMs / 1000).toFixed(2)} s (${s.timing ? timingText(s.timing) : 'no split'}) · downloaded ${s.downloadKB.toFixed(0)} KB`,
     `Browser: ${navigator.userAgent}`,
   ].join('\n');
 }

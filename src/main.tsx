@@ -1,10 +1,21 @@
 import { render } from 'preact';
 import { isPresetId } from './engine/presetIds';
+// Inlined into the main bundle so the worker doesn't cost a second network round trip.
+import EngineWorker from './engine/worker?worker&inline';
 import type { BuildRequest, FromWorker } from './engine/protocol';
 import { QUALITY, TIERS, autoTier, type Tier } from './render/quality';
 import { Stage } from './render/stage';
 import { App, type AppState, effectiveTier } from './ui/App';
 import { createStore } from './ui/store';
+
+// Milliseconds since navigation start for each loading phase (shown in Details and copied with results).
+const marks = { code: performance.now(), setup: 0, requested: 0, built: 0, ready: 0, hidden: document.visibilityState === 'hidden' };
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden' && !marks.ready) marks.hidden = true; // background tabs pause drawing
+});
+
+// Start the worker first so its startup overlaps WebGL setup.
+const worker = new EngineWorker();
 
 // URL parameters let a specific setup be shared or tested, e.g. ?preset=afro&quality=light&grain=1
 const params = new URLSearchParams(location.search);
@@ -23,6 +34,7 @@ const store = createStore<AppState>({
   build: null,
   frame: null,
   loadMs: 0,
+  timing: null,
   downloadKB: 0,
   benchRunning: false,
   bench: null,
@@ -62,8 +74,8 @@ function start(stage: Stage): void {
   stage.setLook(store.get().look);
   stage.setMaxDpr(QUALITY[effectiveTier(store.get())].maxDpr);
   stage.onStats = (frame) => store.set({ frame });
+  marks.setup = performance.now();
 
-  const worker = new Worker(new URL('./engine/worker.ts', import.meta.url), { type: 'module' });
   let requestId = 0;
   let requestedAt = 0;
 
@@ -88,9 +100,20 @@ function start(stage: Stage): void {
     const totalMs = performance.now() - requestedAt;
     const build = { ...msg.stats, totalMs, cellMm: msg.cell * 1000 };
     if (store.get().phase === 'loading') {
+      marks.built = performance.now();
       // Measure once the first frame with hair has been drawn.
       requestAnimationFrame(() => {
-        store.set({ phase: 'ready', building: false, build, loadMs: performance.now(), downloadKB: downloadedKB() });
+        marks.ready = performance.now();
+        const html = (performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined)?.responseEnd ?? 0;
+        const timing = {
+          pageMs: html,
+          codeMs: marks.code - html,
+          setupMs: marks.setup - marks.code,
+          hairMs: marks.built - marks.requested,
+          frameMs: marks.ready - marks.built,
+          backgrounded: marks.hidden,
+        };
+        store.set({ phase: 'ready', building: false, build, loadMs: marks.ready, timing, downloadKB: downloadedKB() });
         loader?.classList.add('done');
         window.__haircut!.ready = true;
       });
@@ -99,6 +122,10 @@ function start(stage: Stage): void {
     }
   };
   worker.onerror = (e) => fail(`The hair worker failed to start (${e.message || 'unknown error'}).`);
+
+  // Request the hair before drawing the UI so the build starts as early as possible.
+  rebuild();
+  marks.requested = requestedAt;
 
   render(
     <App
@@ -129,8 +156,6 @@ function start(stage: Stage): void {
     />,
     document.getElementById('ui')!,
   );
-
-  rebuild();
 }
 
 /** Compressed bytes fetched for this page (0 when everything came from cache). */
