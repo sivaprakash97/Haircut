@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="description" content="Sculpt, cut and style hair made of clay, right in your browser." />
+    <meta name="description" content="Cut, comb and style an overgrown head of cartoon hair, right in your browser." />
     <meta name="theme-color" content="#9fd8ff" />
     <title>Haircut Playground</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M6 22c0-9 5-16 12-16 5 0 8 4 8 9 0 6-5 11-11 11H9a3 3 0 0 1-3-4z' fill='%232f6bff'/%3E%3C/svg%3E" />
@@ -114,20 +114,20 @@
         .panel { top: 60px; left: 12px; right: 12px; width: auto; max-height: 50%; }
         .hint { display: none; }
         .dock { width: calc(100% - 24px); }
-        .toolbar { width: 100%; }
-        .tool { min-width: 56px; }
+        .toolbar { width: 100%; gap: 2px; padding: 4px; }
+        .tool { flex: 1 1 0; min-width: 0; padding: 6px 1px 5px; font-size: 9.5px; }
       }
     </style>
   </head>
   <body>
-    <canvas id="scene" aria-label="3D head with sculptable hair. Drag on the hair to use the selected tool, drag elsewhere to rotate, scroll or pinch to zoom."></canvas>
+    <canvas id="scene" aria-label="3D character with long hair and a beard. Drag on the hair to use the selected tool, drag elsewhere to spin the chair, scroll or pinch to zoom."></canvas>
     <div id="loader" role="status">
       <svg viewBox="0 0 64 64" aria-hidden="true">
         <path d="M10 44c0-18 10-32 25-32 11 0 19 8 19 19 0 13-10 21-23 21H17c-4 0-7-3-7-8z" fill="#2f6bff" />
         <path d="M18 40c2-10 8-18 17-19" stroke="#8fd6ff" stroke-width="4" stroke-linecap="round" fill="none" />
         <path d="M10 44c0-18 10-32 25-32 11 0 19 8 19 19 0 13-10 21-23 21H17c-4 0-7-3-7-8z" fill="none" stroke="#1a1229" stroke-width="3" />
       </svg>
-      <p>Mixing hair clay…</p>
+      <p>Growing hair…</p>
     </div>
     <div id="ui"></div>
     <script type="module" src="/src/main.tsx"></script>

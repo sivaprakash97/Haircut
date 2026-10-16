@@ -11,16 +11,6 @@ export interface Bounds {
   readonly max: readonly [number, number, number];
 }
 
-/** Inclusive range of cell indices. */
-export interface CellBox {
-  i0: number;
-  j0: number;
-  k0: number;
-  i1: number;
-  j1: number;
-  k1: number;
-}
-
 /**
  * A dense grid of quantized signed distances ("shape") plus a colour per cell.
  * Distances are stored as Int8 over a narrow band of `bandCells` cells; values
@@ -102,29 +92,6 @@ export class Field {
       }
     }
     return false;
-  }
-
-  /**
-   * Cells within a world-space box, clamped to the editable interior
-   * (boundary cells always stay outside so meshes remain closed). Null if empty.
-   */
-  boxAround(x0: number, y0: number, z0: number, x1: number, y1: number, z1: number): CellBox | null {
-    const c = this.cell;
-    const b: CellBox = {
-      i0: Math.max(1, Math.floor((x0 - this.ox) / c)), i1: Math.min(this.nx - 2, Math.ceil((x1 - this.ox) / c)),
-      j0: Math.max(1, Math.floor((y0 - this.oy) / c)), j1: Math.min(this.ny - 2, Math.ceil((y1 - this.oy) / c)),
-      k0: Math.max(1, Math.floor((z0 - this.oz) / c)), k1: Math.min(this.nz - 2, Math.ceil((z1 - this.oz) / c)),
-    };
-    return b.i0 > b.i1 || b.j0 > b.j1 || b.k0 > b.k1 ? null : b;
-  }
-
-  /** Marks the tracking blocks overlapping `b` as possibly containing surface. */
-  markNear(b: CellBox): void {
-    for (let k = Math.floor(b.k0 / BLOCK); k <= Math.floor(b.k1 / BLOCK); k++) {
-      for (let j = Math.floor(b.j0 / BLOCK); j <= Math.floor(b.j1 / BLOCK); j++) {
-        for (let i = Math.floor(b.i0 / BLOCK); i <= Math.floor(b.i1 / BLOCK); i++) this.near[i + this.kx * (j + this.ky * k)] = 1;
-      }
-    }
   }
 
   /** Distance in metres stored in cell `o`. */

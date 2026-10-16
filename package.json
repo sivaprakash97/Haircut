@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Browser-based 3D hair sculpting sandbox: hair is sculptable clay.",
+  "description": "Browser-based 3D salon toy: cut, comb and style an overgrown head of cartoon hair.",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

@@ -1,11 +1,93 @@
 # Haircut Playground — Technical Discovery & Architecture Recommendation
 
-Status: **Revision 2, approved.** Hair is "hair clay", sandcastle-style. Milestones 1 and 2 are built; see [`m1-report.md`](m1-report.md) and [`m2-report.md`](m2-report.md).
-Date: 2026-10-15
+Status: **Revision 3, in use.** Hair is a set of chunky cartoon locks with light physics (see [R3](#r3-hair-locks-current)). Milestone 3 is built: [`m3-report.md`](m3-report.md). Milestones 1–2 built the earlier hair-clay design: [`m1-report.md`](m1-report.md), [`m2-report.md`](m2-report.md).
+Date: 2026-10-16
 
 Revision history
 - **R1:** recommended a "lock field": hair as 1,500–3,000 guide curves meshed as tubes. Shelved, because it needs 0.2–0.7 M hair triangles, which is too heavy for mid-range laptops, and because it doesn't feel like clay or sand. It is summarized in §2.2.
-- **R2 (this document):** hair is a sculptable volume of "clay" that behaves like a sandcastle or kinetic sand. Adds a loading-time and page-weight budget.
+- **R2:** hair is a sculptable volume of "clay" that behaves like a sandcastle or kinetic sand. Adds a loading-time and page-weight budget. Built as M1–M2. Sections 0–8 below describe it and are kept for the record; the stack, loading plan and page-weight budget still apply.
+- **R3 (current):** after trying M2, the user found that cutting, combing, gel and the dryer didn't behave like the real thing. They also didn't want preset hairstyles, and only Grow and Extrude felt right. Hair is now chunky cartoon locks on one overgrown starting head with a beard, with gravity and sway. See the next section.
+
+---
+
+## R3. Hair locks (current)
+
+### What the user asked for
+- **Starting hair:** one overgrown head of long hair and a full beard to cut, comb and shape like a salon toy, with no preset hairstyles.
+- **Look:** chunky cartoon locks: thick, tapered clumps with outlines (Jet Set Radio / anime). They must stay light enough for the low-end laptop (ASUS FX505GE).
+- **Movement:** gravity and gentle sway. Long hair hangs and swings when the head turns; gel locks a shape in place; the dryer blows hair around.
+
+### Representation
+- **Locks:** about 600 locks (about 360 on the scalp, 230 in the beard).
+  - Each is a chain of up to 21 nodes, with 1.6 cm segments on the scalp (32 cm maximum) and 0.9 cm in the beard.
+  - Per lock: a root just under the skin, a radius, a colour, a **hold** (0 = loose, 1 = gelled), a **bluntness** (cut end vs. natural tip), and a **rest shape**, which is the styled shape it settles into.
+- **Root placement:**
+  - Roots are spread over the scalp and beard areas by Poisson-disk sampling of the head surface. The areas are defined by a hairline and a cheek line, with the lips and ears kept clear.
+  - Roots are mirrored, so Mirror strokes act on matching locks.
+- **Starting hair:**
+  - Each lock is draped from its root under gravity, with a slight wave. Lengths: fringe about 9 cm, sides and back up to about 25 cm, beard 3.5–8.5 cm.
+  - The physics then settles the hair briefly.
+  - The result is identical on every load, and it is generated on the device in about 0.25 s, in a worker.
+
+### Physics (main thread, fixed 60 Hz)
+- **Chains:**
+  - Each lock is an inextensible "follow-the-leader" chain (Müller et al. 2012) with its velocity correction (damping 0.5). It falls under gravity with air drag.
+  - Each node is pulled back toward its rest shape: firmly at the root, so hair lifts off the scalp before it falls, and softly at the tip, so it swings. Gel raises the pull on every node to 0.45 per step.
+- **Collisions:**
+  - Locks collide with the head, neck and shoulders through a 6 mm signed-distance grid built in a worker.
+  - Locks rooted higher keep further from the skin (layered offsets), which gives the hair volume without lock-to-lock collisions.
+- **Turning:** the character turns like a salon chair, and roots move with it, so hair lags, swings and fans out when spun.
+- **Rest:**
+  - Static friction keeps the hair from creeping. An average-movement test puts it to sleep, and the page stops drawing when everything is still.
+- **Cost:**
+  - 0.71 ms per step with all of the hair moving (about 7,000 active nodes; 2.1 GHz vCPU, Node).
+  - Nothing while asleep.
+
+### Rendering
+- **Draw calls:** one instanced draw for the locks, and one for their outlines (inverted hull).
+- **No vertex data:** the vertex shader builds each lock's tube from a float texture of node positions.
+  - It interpolates Catmull–Rom curves between nodes.
+  - The cross-section is slightly flattened and follows a twist-free (parallel-transported) frame, packed into one float per node.
+  - Ends taper to a natural point, or stay flat with a small bevel where they were cut.
+  - The lock is darker near the roots, for depth.
+  - A moving frame uploads about 0.25 MB; an idle frame uploads nothing.
+- **Quality tiers** change only the tube detail and the head resolution:
+
+  | Tier | Rings per segment | Sides | Hair triangles (fill + outline) |
+  |---|---|---|---|
+  | Light | 1 | 5 | ~260k |
+  | Standard | 2 | 6 | ~590k |
+  | High | 2 | 8 | ~790k |
+
+  Most triangles past the tips of short locks have zero area and cost almost nothing. Changing tier keeps the hair.
+- **Cut-off pieces** become free-falling chains, drawn by the same shader, which slide off the shoulders and shrink away.
+
+### Tools
+| Tool | Mechanism |
+|---|---|
+| Scissors | The blade is the triangle swept between successive view rays. Every lock crossing it is cut there, up to the skin, so hair behind the head is safe. |
+| Clippers | Cuts hair where it touches, and buzzes everything rooted under the brush to the guard length. |
+| Comb | Locks the teeth pass through are held. Each is laid from its root to the held point on an arc, wrapped over the skin, and the rest trails behind. The held point slides along the lock as the comb moves away, until the tip slips out. Combing leaves a light set (hold 0.2–0.45 with strength). |
+| Grow | Lengthens locks under the brush (or rooted under it on bare skin), continuing their direction. Cut ends regrow natural tips. |
+| Extrude | Same held-lock mechanism as the comb, but the lock grows to reach the pointer, and is gelled (hold 0.9) on release. |
+| Gel | Raises hold, and freezes the current shape as the rest shape. |
+| Dryer | An air beam along the pointer ray, with turbulence, shielded by the head. While it blows, the rest shape slowly takes the blown shape and gel loosens. |
+
+**History:** each stroke saves the style of every lock it touches, before and after (rest shape, length, hold, bluntness, colour). Undo and redo restore exact values; Reset is one undoable step. History is capped at 48 MB.
+
+### Kept from M1–M2
+- The stack: three.js r186, Preact, Vite, TypeScript, Vitest and Playwright.
+- The SDF head, built with Surface Nets in a worker; its collision grid comes from the same SDF.
+- Toon shading and outlines, render-on-demand with adaptive resolution, quality tiers, the loading-time marks, CI, the size budget and the deployment.
+
+### Removed
+- The hair-clay engine: grid editing, brick undo and the preset hairstyles.
+
+### Risks and next steps
+- **Lock-to-lock collisions** are not simulated. A comb or the dryer can push one lock through another. If this bothers users, a cheap fix is a coarse density grid.
+- **Low-end GPU:** the triangle count is about 2–6× that of the clay prototype. The ASUS speed test is still needed; the next lever is fewer rings on Light.
+- **Custom character models** (M7) will need scalp and beard masks: painted, or derived from the hairline the way `src/hair/regions.ts` does.
+- **Hair types** (curly, wavy, afro, spiky) map naturally to the rest shape: helical offsets, kinks and stiffness. Dye maps to per-lock colour. Braids and beads attach to lock nodes.
 
 ---
 

@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildField } from '../src/engine/build';
 import { Field } from '../src/engine/grid';
-import { HEAD_BOUNDS, headSDF, sampleHead } from '../src/engine/head';
-import { HAIR_BOUNDS, PRESETS, PRESET_IDS } from '../src/engine/presets';
+import { HEAD_BOUNDS, sampleHead } from '../src/engine/head';
 import { TABLE_STRIDE, meshBricks, type MeshBatch } from '../src/engine/surfaceNets';
 
 const sphereBounds = { min: [-0.1, -0.1, -0.1], max: [0.1, 0.1, 0.1] } as const;
@@ -116,25 +115,8 @@ describe('field', () => {
   });
 });
 
-describe('presets and head', () => {
-  for (const id of PRESET_IDS) {
-    it(`${id}: builds a finite mesh that stays outside the head`, () => {
-      const cell = 0.004;
-      const f = new Field(HAIR_BOUNDS, cell);
-      buildField(f, PRESETS[id].sample, PRESETS[id].lipschitz);
-      const m = meshBricks(f, undefined, { ao: 1.25, occluder: headSDF });
-      const nv = m.positions.length / 3;
-      expect(nv).toBeGreaterThan(2000);
-      for (let i = 0; i < m.positions.length; i++) expect(Number.isFinite(m.positions[i])).toBe(true);
-      let deep = 0;
-      for (let v = 0; v < nv; v++) {
-        if (headSDF(m.positions[v * 3], m.positions[v * 3 + 1], m.positions[v * 3 + 2]) < -cell) deep++;
-      }
-      expect(deep).toBe(0);
-    });
-  }
-
-  it('head builds a mesh', () => {
+describe('head', () => {
+  it('builds a closed mesh', () => {
     const f = new Field(HEAD_BOUNDS, 0.004);
     buildField(f, sampleHead, 1.2);
     const m = meshBricks(f);

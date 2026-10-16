@@ -9,7 +9,6 @@ export interface LookUniforms {
   uShadowTint: { value: Color };
   uRim: { value: Color };
   uAO: { value: number };
-  uGrain: { value: number };
 }
 
 export function createLookUniforms(): LookUniforms {
@@ -19,13 +18,11 @@ export function createLookUniforms(): LookUniforms {
     uShadowTint: { value: new Color(0.6, 0.54, 0.8) },
     uRim: { value: new Color(1.0, 0.93, 0.8) },
     uAO: { value: 1 },
-    uGrain: { value: 0 },
   };
 }
 
 const toonVertex = /* glsl */ `
 attribute vec4 aColor;
-attribute float aHold;
 varying vec3 vN;
 varying vec3 vW;
 varying vec4 vC;
@@ -35,74 +32,51 @@ void main() {
   vW = w.xyz;
   vN = normalize(mat3(modelMatrix) * normal);
   vC = aColor;
-  vHold = aHold;
+  vHold = 0.0;
   gl_Position = projectionMatrix * viewMatrix * w;
 }`;
 
-const toonFragment = /* glsl */ `
+/** Cel shading shared by skin and hair. vC.a is baked depth shading; vHold (hair) is gel, which adds a wet shine. */
+export const toonFragment = /* glsl */ `
 uniform vec3 uLightDir;
 uniform vec3 uCamPos;
 uniform vec3 uShadowTint;
 uniform vec3 uRim;
 uniform float uAO;
-uniform float uGrain;
-uniform float uHoldLook; // 1 for hair: firmness shows as gloss (gel) or matte grain (dried)
 varying vec3 vN;
 varying vec3 vW;
 varying vec4 vC;
 varying float vHold;
 
-float hash(vec3 p) {
-  p = fract(p * 0.3183099 + 0.1);
-  p *= 17.0;
-  return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
-}
-
 void main() {
   vec3 n = normalize(vN);
   vec3 v = normalize(uCamPos - vW);
+  if (dot(n, v) < -0.2) n = -n; // tube caps seen from inside a cut
   float ndl = dot(n, uLightDir);
-  float aa = fwidth(ndl) * 1.2 + 0.03;                   // slightly soft edge reads as clay
+  float aa = fwidth(ndl) * 1.2 + 0.03;
   float lit = smoothstep(-aa, aa, ndl - 0.03);           // light/shadow terminator
   float hi = smoothstep(0.72 - aa, 0.72 + aa, ndl);      // small highlight band
-  // Packed material (the default) looks as before; gel adds a wet highlight, drying goes matte.
-  float hold = mix(0.784, vHold, uHoldLook);
-  float gel = smoothstep(0.82, 1.0, hold);
-  float dry = 1.0 - smoothstep(0.3, 0.7, hold);
-  vec3 base = vC.rgb;
+  float gel = smoothstep(0.5, 0.95, vHold);           // combed hair is a little set; only gel shines
+  vec3 base = vC.rgb * mix(1.0, 0.9, gel);                // gelled hair looks wet and a touch darker
   vec3 col = mix(base * uShadowTint, base, lit);
-  col = mix(col, min(base * 1.1 + 0.03, vec3(1.0)), hi * mix(0.4, 0.6, gel) * (1.0 - dry));
+  col = mix(col, min(base * 1.25 + 0.05, vec3(1.0)), hi * mix(0.45, 0.6, gel));
   vec3 h = normalize(uLightDir + v);
-  float spec = smoothstep(0.93, 0.95, dot(n, h)) * gel;   // hard-edged toon specular
-  col = mix(col, vec3(1.0), spec * 0.75);
+  float spec = smoothstep(0.945, 0.965, dot(n, h)) * gel;  // hard-edged toon specular
+  col = mix(col, vec3(1.0), spec * 0.55);
 
-  // Clay crevices: baked ambient occlusion.
+  // Baked depth shading (crevices, hair roots).
   col *= mix(1.0, vC.a, uAO);
 
   // Rim light on the lit side.
   float fres = 1.0 - max(dot(n, v), 0.0);
   float rim = smoothstep(0.6, 0.66, fres) * smoothstep(-0.1, 0.35, ndl);
   col += uRim * rim * 0.22;
-
-  // Packed-sand grain, fixed in world space so it does not swim.
-  float grain = max(uGrain, dry * uHoldLook);
-  if (grain > 0.0) {
-    float g = hash(floor(vW * 1100.0));
-    col *= 1.0 - grain * (step(0.78, g) * 0.11 - step(g, 0.08) * 0.06);
-  }
   gl_FragColor = vec4(col, 1.0);
 }`;
 
-/**
- * Skin and eyes pass `hair: false`: no grain toggle and no hold-based gloss.
- * Hair shares the grain toggle and shows gel/dryer edits.
- */
-export function createToonMaterial(look: LookUniforms, hair: boolean): ShaderMaterial {
-  return new ShaderMaterial({
-    uniforms: { ...look, uGrain: hair ? look.uGrain : { value: 0 }, uHoldLook: { value: hair ? 1 : 0 } },
-    vertexShader: toonVertex,
-    fragmentShader: toonFragment,
-  });
+/** Skin, eyes and clothes. */
+export function createToonMaterial(look: LookUniforms): ShaderMaterial {
+  return new ShaderMaterial({ uniforms: { ...look }, vertexShader: toonVertex, fragmentShader: toonFragment });
 }
 
 const outlineVertex = /* glsl */ `

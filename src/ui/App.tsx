@@ -1,22 +1,36 @@
 import { useState } from 'preact/hooks';
-import type { ToolChoice } from '../app/brush';
-import { PRESET_LIST, type PresetId } from '../engine/presetIds';
-import type { BuildStats, HistoryState } from '../engine/protocol';
+import type { ToolChoice } from '../app/input';
 import { QUALITY, TIERS, type Tier } from '../render/quality';
 import type { BenchResult, FrameStats, Look } from '../render/stage';
 import { type ToolInfo, TOOLS } from './tools';
 import { type Store, useStore } from './store';
 
+export interface HistoryState {
+  undo: number;
+  redo: number;
+}
+
+export interface BuildStats {
+  /** Collision body, starting hair and head mesh (worker), and the whole request (ms). */
+  bodyMs: number;
+  locksMs: number;
+  headMs: number;
+  totalMs: number;
+}
+
 export interface AppState {
   phase: 'loading' | 'ready' | 'error';
   error: string;
-  preset: PresetId;
   tierChoice: Tier | 'auto';
   autoTier: Tier;
   look: Look;
   gpu: string;
   building: boolean;
-  build: (BuildStats & { totalMs: number; cellMm: number }) | null;
+  build: BuildStats | null;
+  /** Number of locks (scalp and beard). */
+  locks: number;
+  /** Physics time per step (ms, smoothed). */
+  simMs: number;
   frame: FrameStats | null;
   loadMs: number;
   timing: LoadTiming | null;
@@ -27,8 +41,10 @@ export interface AppState {
   radiusCm: number;
   strength: number;
   mirror: boolean;
+  /** Clipper guard length (cm). */
+  guardCm: number;
   history: HistoryState;
-  /** Worker time for the most recent edit message (ms). */
+  /** Tool time for the most recent stroke update (ms). */
   editMs: number;
 }
 
@@ -40,7 +56,7 @@ export interface LoadTiming {
   codeMs: number;
   /** WebGL and scene setup. */
   setupMs: number;
-  /** Hair request sent until the meshes came back from the worker. */
+  /** Hair and head requested until both came back from the worker. */
   hairMs: number;
   /** Uploading the meshes and drawing the first frame. */
   frameMs: number;
@@ -56,18 +72,17 @@ export function timingText(t: LoadTiming): string {
 }
 
 export interface Actions {
-  setPreset(id: PresetId): void;
   setTier(t: Tier | 'auto'): void;
   setLook(look: Look): void;
   runBenchmark(): void;
   setTool(t: ToolChoice): void;
-  setBrush(patch: Partial<Pick<AppState, 'radiusCm' | 'strength' | 'mirror'>>): void;
+  setBrush(patch: Partial<Pick<AppState, 'radiusCm' | 'strength' | 'mirror' | 'guardCm'>>): void;
   undo(): void;
   redo(): void;
   reset(): void;
 }
 
-/** Order of the tool bar; keys 1–7 select them. */
+/** Order of the tool bar; keys 1–8 select them. */
 export const TOOL_ORDER: ToolChoice[] = TOOLS.map((t) => t.id);
 
 export const effectiveTier = (s: AppState): Tier => (s.tierChoice === 'auto' ? s.autoTier : s.tierChoice);
@@ -85,7 +100,7 @@ export function App({ store, actions }: { store: Store<AppState>; actions: Actio
         <div class="history" role="group" aria-label="History">
           <IconButton label="Undo (Ctrl/⌘ Z)" disabled={!ready || s.history.undo === 0} onClick={actions.undo} icon={ICON_UNDO} />
           <IconButton label="Redo (Shift Ctrl/⌘ Z)" disabled={!ready || s.history.redo === 0} onClick={actions.redo} icon={ICON_REDO} />
-          <IconButton label="Reset to the starting hairstyle" disabled={!ready} onClick={actions.reset} icon={ICON_RESET} />
+          <IconButton label="Reset to the starting hair" disabled={!ready} onClick={actions.reset} icon={ICON_RESET} />
         </div>
         <button class="panel-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
           {open ? 'Hide controls' : 'Controls'}
@@ -96,16 +111,8 @@ export function App({ store, actions }: { store: Store<AppState>; actions: Actio
         <aside class="panel" aria-label="Controls">
           <header>
             <h1>Haircut Playground</h1>
-            <p class="tag">Milestone 2 · sculpting tools</p>
+            <p class="tag">Milestone 3 · cut, comb and style real locks</p>
           </header>
-
-          <Group label="Starting hairstyle">
-            {PRESET_LIST.map((p) => (
-              <Choice key={p.id} on={s.preset === p.id} disabled={s.building} onClick={() => actions.setPreset(p.id)}>
-                {p.label}
-              </Choice>
-            ))}
-          </Group>
 
           <Group label="Quality">
             <Choice on={s.tierChoice === 'auto'} disabled={s.building} onClick={() => actions.setTier('auto')}>
@@ -117,12 +124,9 @@ export function App({ store, actions }: { store: Store<AppState>; actions: Actio
               </Choice>
             ))}
           </Group>
-          {s.history.undo > 0 && <p class="note">Changing the hairstyle or quality starts over (your edits are cleared).</p>}
-
           <Group label="Look">
             <Choice on={s.look.outline} onClick={() => actions.setLook({ ...s.look, outline: !s.look.outline })}>Outline</Choice>
             <Choice on={s.look.ao} onClick={() => actions.setLook({ ...s.look, ao: !s.look.ao })}>Depth shading</Choice>
-            <Choice on={s.look.grain} onClick={() => actions.setLook({ ...s.look, grain: !s.look.grain })}>Sand grain</Choice>
           </Group>
 
           <section class="bench">
@@ -136,14 +140,14 @@ export function App({ store, actions }: { store: Store<AppState>; actions: Actio
             <summary>Details</summary>
             <dl>
               <Row k="Graphics" v={s.gpu || '—'} />
-              <Row k="Quality" v={`${QUALITY[tier].label} · ${(QUALITY[tier].cell * 1000).toFixed(1)} mm cells`} />
-              <Row k="Hair cells" v={s.build ? `${(s.build.cells / 1e6).toFixed(2)} M` : '—'} />
+              <Row k="Quality" v={qualityText(tier)} />
+              <Row k="Hair" v={s.locks ? `${s.locks} locks · physics ${s.simMs.toFixed(2)} ms per step` : '—'} />
               <Row k="Triangles" v={s.frame ? `${fmtK(s.frame.hairTriangles)} hair · ${fmtK(s.frame.triangles)} drawn` : '—'} />
               <Row k="Draw calls" v={s.frame ? String(s.frame.drawCalls) : '—'} />
               <Row k="Resolution" v={s.frame ? `${s.frame.width}×${s.frame.height} @${s.frame.dpr.toFixed(2)}x` : '—'} />
               <Row k="Frame time" v={s.frame && s.frame.frameMs ? `${s.frame.frameMs.toFixed(1)} ms` : 'idle (not drawing)'} />
-              <Row k="Last edit" v={s.editMs ? `${s.editMs.toFixed(1)} ms in the background` : '—'} />
-              <Row k="Hair build" v={s.build ? `${s.build.totalMs.toFixed(0)} ms (shape ${s.build.fieldMs.toFixed(0)}, mesh ${s.build.meshMs.toFixed(0)}, head ${s.build.headMs.toFixed(0)})` : '—'} />
+              <Row k="Last edit" v={s.editMs ? `${s.editMs.toFixed(2)} ms` : '—'} />
+              <Row k="Build" v={s.build ? `${s.build.totalMs.toFixed(0)} ms (body ${s.build.bodyMs.toFixed(0)}, hair ${s.build.locksMs.toFixed(0)}, head ${s.build.headMs.toFixed(0)})` : '—'} />
               <Row k="Ready after" v={s.loadMs ? `${(s.loadMs / 1000).toFixed(2)} s` : '—'} />
               {s.timing && <Row k="Split (s)" v={timingText(s.timing)} />}
               <Row k="Downloaded" v={s.downloadKB ? `${s.downloadKB.toFixed(0)} KB` : 'cached'} />
@@ -171,12 +175,12 @@ export function App({ store, actions }: { store: Store<AppState>; actions: Actio
         </nav>
         <p class="hint">
           {tool.id === 'view'
-            ? 'Drag to turn the head · scroll or pinch to zoom · pick a tool to start styling'
+            ? 'Drag to spin the chair · scroll or pinch to zoom · pick a tool to start styling'
             : `${tool.help} · right-drag or drag empty space to rotate`}
         </p>
       </div>
 
-      {s.building && s.phase === 'ready' && <div class="toast">Rebuilding hair…</div>}
+      {s.building && s.phase === 'ready' && <div class="toast">Rebuilding the head…</div>}
       {s.phase === 'error' && <div class="toast error">{s.error}</div>}
     </>
   );
@@ -193,6 +197,16 @@ function BrushBar({ s, tool, actions }: { s: AppState; tool: ToolInfo; actions: 
             onInput={(e) => actions.setBrush({ radiusCm: Number((e.target as HTMLInputElement).value) })}
           />
           <output>{s.radiusCm.toFixed(1)} cm</output>
+        </label>
+      )}
+      {tool.guard && (
+        <label>
+          <span>Guard</span>
+          <input
+            type="range" min={0} max={3} step={0.1} value={s.guardCm}
+            onInput={(e) => actions.setBrush({ guardCm: Number((e.target as HTMLInputElement).value) })}
+          />
+          <output>{s.guardCm === 0 ? 'shave' : `${s.guardCm.toFixed(1)} cm`}</output>
         </label>
       )}
       {tool.strength && (
@@ -236,7 +250,7 @@ export function benchText(s: AppState): string {
   return [
     `Haircut speed test`,
     `GPU: ${s.gpu}`,
-    `Hairstyle: ${s.preset} · Quality: ${t.label} (${(t.cell * 1000).toFixed(1)} mm)`,
+    `Quality: ${qualityText(t.tier)} · ${s.locks} locks · physics ${s.simMs.toFixed(2)} ms per step`,
     `Canvas: ${b.width}×${b.height} @${b.dpr.toFixed(2)}x`,
     `Result: ${b.avgFps.toFixed(0)} fps average, slowest 5% of frames ${b.p95Ms.toFixed(1)} ms`,
     `Triangles drawn: ${fmtK(b.triangles)}`,
@@ -297,6 +311,11 @@ function Row({ k, v }: { k: string; v: string }) {
       <dd>{v}</dd>
     </>
   );
+}
+
+function qualityText(t: Tier): string {
+  const q = QUALITY[t];
+  return `${q.label} · ${q.sides}-sided locks, ${q.sub} ring${q.sub > 1 ? 's' : ''} per segment`;
 }
 
 function fmtK(n: number): string {

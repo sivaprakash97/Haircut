@@ -1,3 +1,4 @@
+import { stubble } from '../hair/regions';
 import { rgb } from './color';
 import type { Bounds } from './grid';
 import type { SampleOut } from './build';
@@ -9,6 +10,8 @@ import { Sculpt, len3, sdCapsule, sdEllipsoid, sdRoundCone, sdSphere, smax, smin
 export const HEAD_BOUNDS: Bounds = { min: [-0.165, -0.26, -0.115], max: [0.165, 0.145, 0.14] };
 
 const SKIN = rgb(0xc98a5e);
+/** Skin under hair: a dark stubble shadow, so gaps between locks (or a buzz cut) read as hair. */
+const STUBBLE = rgb(0x6b4a52);
 const LIPS = rgb(0xa45a4c);
 const JACKET = rgb(0xf2c230);
 const COLLAR = rgb(0x2b2140);
@@ -70,7 +73,11 @@ export function sampleHead(x: number, y: number, z: number, out: SampleOut): voi
   s.begin();
   // A faint lip tint around the mouth line (the line itself is a separate mesh; see MOUTH).
   const lip = 0.45 * Math.min(1, Math.max(0, 1 - (mouthSDF(x, y, z) - 0.002) / 0.003));
-  s.add(faceSDF(x, y, z), [SKIN[0] + (LIPS[0] - SKIN[0]) * lip, SKIN[1] + (LIPS[1] - SKIN[1]) * lip, SKIN[2] + (LIPS[2] - SKIN[2]) * lip]);
+  const face = faceSDF(x, y, z);
+  // Colour only matters next to the surface; skip the stubble mask elsewhere.
+  const hair = Math.abs(face) < 0.012 ? 0.75 * stubble(x, y, z) : 0;
+  const r = SKIN[0] + (LIPS[0] - SKIN[0]) * lip, g = SKIN[1] + (LIPS[1] - SKIN[1]) * lip, b = SKIN[2] + (LIPS[2] - SKIN[2]) * lip;
+  s.add(face, [r + (STUBBLE[0] - r) * hair, g + (STUBBLE[1] - g) * hair, b + (STUBBLE[2] - b) * hair]);
   if (y < -0.11) {
     // Shape blends softly; colour edges stay crisp but smooth.
     s.add(torsoSDF(x, y, z), JACKET, 0.04, 0.004);

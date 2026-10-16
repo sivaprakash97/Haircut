@@ -1,4 +1,4 @@
-import type { ToolChoice } from '../app/brush';
+import type { ToolChoice } from '../app/input';
 
 export interface ToolInfo {
   id: ToolChoice;
@@ -9,14 +9,15 @@ export interface ToolInfo {
   /** Which brush controls apply. */
   size: boolean;
   strength: boolean;
+  guard: boolean;
   icon: preact.JSX.Element;
 }
 
 // Simple 24×24 stroke icons (drawn with currentColor).
 export const TOOLS: ToolInfo[] = [
   {
-    id: 'view', label: 'Rotate', color: '#c9c3e6', size: false, strength: false,
-    help: 'Drag to turn the head',
+    id: 'view', label: 'Rotate', color: '#c9c3e6', size: false, strength: false, guard: false,
+    help: 'Drag to spin the chair; flick it and watch the hair swing',
     icon: (
       <>
         <path d="M20 12a8 8 0 0 1-14.3 4.9M4 12a8 8 0 0 1 14.3-4.9" />
@@ -25,8 +26,8 @@ export const TOOLS: ToolInfo[] = [
     ),
   },
   {
-    id: 'scissors', label: 'Scissors', color: '#ff4d6d', size: false, strength: false,
-    help: 'Swipe across hair to slice it; cut-off pieces fall away',
+    id: 'scissors', label: 'Scissors', color: '#ff4d6d', size: false, strength: false, guard: false,
+    help: 'Swipe across locks to snip them; the ends fall away',
     icon: (
       <>
         <circle cx="6" cy="6" r="3" />
@@ -36,13 +37,23 @@ export const TOOLS: ToolInfo[] = [
     ),
   },
   {
-    id: 'comb', label: 'Comb', color: '#7cc6ff', size: true, strength: true,
-    help: 'Drag along the hair to push the clay with your stroke',
+    id: 'clippers', label: 'Clippers', color: '#b98cff', size: true, strength: false, guard: true,
+    help: 'Rub over the head to buzz the hair down to the guard length',
+    icon: (
+      <>
+        <path d="M7 10h10v9a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z" />
+        <path d="M6 7h12v3H6zM8 7V4M11 7V4M14 7V4M17 7V4" />
+      </>
+    ),
+  },
+  {
+    id: 'comb', label: 'Comb', color: '#7cc6ff', size: true, strength: true, guard: false,
+    help: 'Drag through the hair to comb it the way you drag',
     icon: <path d="M3 8h18v3H3zM5 11v8M8 11v8M11 11v8M14 11v8M17 11v8M20 11v8" />,
   },
   {
-    id: 'grow', label: 'Grow', color: '#6be38a', size: true, strength: true,
-    help: 'Hold or drag to build hair up, even on bare scalp',
+    id: 'grow', label: 'Grow', color: '#6be38a', size: true, strength: true, guard: false,
+    help: 'Hold over hair (or bare scalp) to grow it longer',
     icon: (
       <>
         <path d="M4 20h16" />
@@ -51,8 +62,8 @@ export const TOOLS: ToolInfo[] = [
     ),
   },
   {
-    id: 'extrude', label: 'Extrude', color: '#ffc43d', size: true, strength: false,
-    help: 'Press on hair and pull outward to draw a spike',
+    id: 'extrude', label: 'Extrude', color: '#ffc43d', size: true, strength: false, guard: false,
+    help: 'Grab hair and pull it out; it stays put (spikes, flicks, wings)',
     icon: (
       <>
         <path d="M4 20h16" />
@@ -62,13 +73,13 @@ export const TOOLS: ToolInfo[] = [
     ),
   },
   {
-    id: 'gel', label: 'Gel', color: '#6fe7ff', size: true, strength: true,
-    help: 'Brush gel on so hair holds its shape (and shines)',
+    id: 'gel', label: 'Gel', color: '#6fe7ff', size: true, strength: true, guard: false,
+    help: 'Brush gel on: hair freezes in its current shape and shines',
     icon: <path d="M12 3c3.5 4.5 6 7.7 6 11a6 6 0 0 1-12 0c0-3.3 2.5-6.5 6-11ZM9.5 14.5a2.5 2.5 0 0 0 2.5 2.5" />,
   },
   {
-    id: 'dryer', label: 'Dryer', color: '#ffa36b', size: true, strength: true,
-    help: 'Dry hair out: it loosens, sags and goes matte like dry sand',
+    id: 'dryer', label: 'Dryer', color: '#ffa36b', size: true, strength: true, guard: false,
+    help: 'Hold to blow the hair around; it sets the way it was blown',
     icon: (
       <>
         <path d="M3 9a5 5 0 0 1 5-5h7v10H8a5 5 0 0 1-5-5ZM9 14l-1 7h3l1-7" />

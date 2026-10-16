@@ -3,16 +3,19 @@ export type Tier = 'light' | 'standard' | 'high';
 export interface QualitySettings {
   tier: Tier;
   label: string;
-  /** Hair grid cell size in metres. */
+  /** Head mesh grid cell size in metres. */
   cell: number;
+  /** Lock tubes: rings per segment and sides per ring. */
+  sub: number;
+  sides: number;
   /** Highest device-pixel ratio we render at (higher-DPI screens are downsampled). */
   maxDpr: number;
 }
 
 export const QUALITY: Record<Tier, QualitySettings> = {
-  light: { tier: 'light', label: 'Light', cell: 0.004, maxDpr: 1.25 },
-  standard: { tier: 'standard', label: 'Standard', cell: 0.003, maxDpr: 1.5 },
-  high: { tier: 'high', label: 'High', cell: 0.0025, maxDpr: 2 },
+  light: { tier: 'light', label: 'Light', cell: 0.004, sub: 1, sides: 5, maxDpr: 1.25 },
+  standard: { tier: 'standard', label: 'Standard', cell: 0.003, sub: 2, sides: 6, maxDpr: 1.5 },
+  high: { tier: 'high', label: 'High', cell: 0.0025, sub: 2, sides: 8, maxDpr: 2 },
 };
 
 export const TIERS: Tier[] = ['light', 'standard', 'high'];

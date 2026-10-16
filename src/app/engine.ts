@@ -1,24 +1,29 @@
-import type { Ray } from '../engine/pick';
-import type { PresetId } from '../engine/presetIds';
-import type {
-  BuildResult, DebugResult, EditResult, FromWorker, PickResult, StrokeRequest, ToWorker,
-} from '../engine/protocol';
+import type { FromWorker, HairResult, HeadResult, ToWorker } from '../engine/protocol';
 // Inlined into the main bundle so the worker doesn't cost a second network round trip.
-import EngineWorker from '../engine/worker?worker&inline';
+import BuildWorker from '../engine/worker?worker&inline';
 
 type Pending = { resolve: (m: FromWorker) => void; reject: (e: Error) => void };
 
-/** Promise-based wrapper around the engine worker. Replies arrive in request order. */
+/**
+ * Promise-based wrapper around two build workers: one makes the starting hair,
+ * the other the head mesh, so the two run side by side while loading.
+ */
 export class Engine {
-  private readonly worker: Worker;
+  private readonly hairWorker: Worker;
+  private readonly headWorker: Worker;
   private nextId = 1;
   private readonly pending = new Map<number, Pending>();
   onFailure: ((message: string) => void) | null = null;
 
   constructor() {
-    // Started before anything else so the worker's startup overlaps WebGL setup.
-    this.worker = new EngineWorker();
-    this.worker.onmessage = (e: MessageEvent<FromWorker>) => {
+    // Started before anything else so the workers' startup overlaps WebGL setup.
+    this.hairWorker = this.start();
+    this.headWorker = this.start();
+  }
+
+  private start(): Worker {
+    const w = new BuildWorker();
+    w.onmessage = (e: MessageEvent<FromWorker>) => {
       const msg = e.data;
       const p = this.pending.get(msg.id);
       this.pending.delete(msg.id);
@@ -29,34 +34,25 @@ export class Engine {
         p?.resolve(msg);
       }
     };
-    this.worker.onerror = (e) => this.onFailure?.(`The hair worker failed to start (${e.message || 'unknown error'}).`);
+    w.onerror = (e) => this.onFailure?.(`A build worker failed to start (${e.message || 'unknown error'}).`);
+    return w;
   }
 
-  build(preset: PresetId, cell: number): Promise<BuildResult> {
-    return this.send({ type: 'build', preset, cell }) as Promise<BuildResult>;
+  /** Collision body and the starting hair. */
+  hair(): Promise<HairResult> {
+    return this.send({ type: 'hair' }) as Promise<HairResult>;
   }
 
-  pick(ray: Ray): Promise<PickResult> {
-    return this.send({ type: 'pick', ray }) as Promise<PickResult>;
-  }
-
-  stroke(req: Omit<StrokeRequest, 'type' | 'id'>): Promise<EditResult> {
-    return this.send({ type: 'stroke', ...req }) as Promise<EditResult>;
-  }
-
-  history(action: 'undo' | 'redo' | 'reset'): Promise<EditResult> {
-    return this.send({ type: 'history', action }) as Promise<EditResult>;
-  }
-
-  debug(): Promise<DebugResult> {
-    return this.send({ type: 'debug' }) as Promise<DebugResult>;
+  /** Head mesh at a quality's cell size. */
+  head(cell: number): Promise<HeadResult> {
+    return this.send({ type: 'head', cell }) as Promise<HeadResult>;
   }
 
   private send(msg: DistributiveOmit<ToWorker, 'id'>): Promise<FromWorker> {
     const id = this.nextId++;
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
-      this.worker.postMessage({ ...msg, id } as ToWorker);
+      (msg.type === 'hair' ? this.hairWorker : this.headWorker).postMessage({ ...msg, id } as ToWorker);
     });
   }
 }
