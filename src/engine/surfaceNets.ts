@@ -11,6 +11,8 @@ export interface MeshBatch {
   positions: Float32Array;
   normals: Int8Array;
   colors: Uint8Array;
+  /** Material firmness per vertex (see DEFAULT_HOLD). */
+  holds: Uint8Array;
   indices: Uint32Array;
 }
 
@@ -35,17 +37,19 @@ class Writer {
   pos = new Float32Array(3 * 8192);
   nrm = new Int8Array(3 * 8192);
   col = new Uint8Array(4 * 8192);
+  hld = new Uint8Array(8192);
   idx = new Uint32Array(6 * 8192);
   nv = 0;
   ni = 0;
 
-  vertex(x: number, y: number, z: number, nx: number, ny: number, nz: number, r: number, g: number, b: number, ao: number): void {
+  vertex(x: number, y: number, z: number, nx: number, ny: number, nz: number, r: number, g: number, b: number, ao: number, hold: number): void {
     if ((this.nv + 1) * 3 > this.pos.length) this.growVertices();
     const v3 = this.nv * 3, v4 = this.nv * 4;
     this.pos[v3] = x; this.pos[v3 + 1] = y; this.pos[v3 + 2] = z;
     this.nrm[v3] = Math.round(nx * 127); this.nrm[v3 + 1] = Math.round(ny * 127); this.nrm[v3 + 2] = Math.round(nz * 127);
     this.col[v4] = Math.round(r * 255); this.col[v4 + 1] = Math.round(g * 255);
     this.col[v4 + 2] = Math.round(b * 255); this.col[v4 + 3] = Math.round(ao * 255);
+    this.hld[this.nv] = hold;
     this.nv++;
   }
 
@@ -62,6 +66,7 @@ class Writer {
     const pos = new Float32Array(this.pos.length * 2); pos.set(this.pos); this.pos = pos;
     const nrm = new Int8Array(this.nrm.length * 2); nrm.set(this.nrm); this.nrm = nrm;
     const col = new Uint8Array(this.col.length * 2); col.set(this.col); this.col = col;
+    const hld = new Uint8Array(this.hld.length * 2); hld.set(this.hld); this.hld = hld;
   }
 }
 
@@ -82,12 +87,13 @@ export function meshBricks(field: Field, bricks?: ArrayLike<number>, opts: MeshO
     positions: w.pos.slice(0, w.nv * 3),
     normals: w.nrm.slice(0, w.nv * 3),
     colors: w.col.slice(0, w.nv * 4),
+    holds: w.hld.slice(0, w.nv),
     indices: w.idx.slice(0, w.ni),
   };
 }
 
 function meshBrick(f: Field, b: number, w: Writer, cellVert: Int32Array, opts: MeshOptions): void {
-  const { nx, ny, nz, shape, color, cell, ox, oy, oz } = f;
+  const { nx, ny, nz, shape, color, hold, cell, ox, oy, oz } = f;
   const sy = nx, sz = nx * ny;
   const co = [0, 1, sy, sy + 1, sz, sz + 1, sz + sy, sz + sy + 1];
   const bxi = b % f.bx, byi = ((b / f.bx) | 0) % f.by, bzi = (b / (f.bx * f.by)) | 0;
@@ -143,11 +149,11 @@ function meshBrick(f: Field, b: number, w: Writer, cellVert: Int32Array, opts: M
         if (gl > 1e-12) { gnx /= gl; gny /= gl; gnz /= gl; } else { gnx = 0; gny = 1; gnz = 0; }
 
         // Colour = mean of the inside corners' material colour.
-        let r = 0, g = 0, bl = 0, ins = 0;
+        let r = 0, g = 0, bl = 0, hd = 0, ins = 0;
         for (let n = 0; n < 8; n++) {
           if (!(mask & (1 << n))) continue;
           const col = color[o + co[n]];
-          r += r565(col); g += g565(col); bl += b565(col); ins++;
+          r += r565(col); g += g565(col); bl += b565(col); hd += hold[o + co[n]]; ins++;
         }
 
         // Ambient occlusion: how much material sits just outside the surface.
@@ -163,7 +169,7 @@ function meshBrick(f: Field, b: number, w: Writer, cellVert: Int32Array, opts: M
           ao = Math.min(1, Math.max(0, 1 - occ * aoStrength));
         }
 
-        w.vertex(wx, wy, wz, gnx, gny, gnz, r / ins, g / ins, bl / ins, ao);
+        w.vertex(wx, wy, wz, gnx, gny, gnz, r / ins, g / ins, bl / ins, ao, Math.round(hd / ins));
         cellVert[c] = w.nv - 1 - vBase;
       }
     }

@@ -1,6 +1,6 @@
 # Haircut Playground — Technical Discovery & Architecture Recommendation
 
-Status: **Revision 2, approved.** Hair is "hair clay", sandcastle-style. Milestone 1 is built; see [`m1-report.md`](m1-report.md).
+Status: **Revision 2, approved.** Hair is "hair clay", sandcastle-style. Milestones 1 and 2 are built; see [`m1-report.md`](m1-report.md) and [`m2-report.md`](m2-report.md).
 Date: 2026-10-15
 
 Revision history

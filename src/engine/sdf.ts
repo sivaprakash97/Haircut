@@ -167,3 +167,39 @@ export class Sculpt {
     this.d = this.d + (d - this.d) * h + k * h * (1 - h);
   }
 }
+
+const dot2 = (x: number, y: number, z: number): number => x * x + y * y + z * z;
+
+/** Unsigned distance to the planar quad a-b-c-d (corners in order). */
+export function udQuad(
+  px: number, py: number, pz: number,
+  a: readonly number[], b: readonly number[], c: readonly number[], d: readonly number[],
+): number {
+  const bax = b[0] - a[0], bay = b[1] - a[1], baz = b[2] - a[2];
+  const cbx = c[0] - b[0], cby = c[1] - b[1], cbz = c[2] - b[2];
+  const dcx = d[0] - c[0], dcy = d[1] - c[1], dcz = d[2] - c[2];
+  const adx = a[0] - d[0], ady = a[1] - d[1], adz = a[2] - d[2];
+  const pax = px - a[0], pay = py - a[1], paz = pz - a[2];
+  const pbx = px - b[0], pby = py - b[1], pbz = pz - b[2];
+  const pcx = px - c[0], pcy = py - c[1], pcz = pz - c[2];
+  const pdx = px - d[0], pdy = py - d[1], pdz = pz - d[2];
+  // normal = ba × ad
+  const nx = bay * adz - baz * ady, ny = baz * adx - bax * adz, nz = bax * ady - bay * adx;
+  // side tests: sign(dot(edge × n, p - corner))
+  const side = (ex: number, ey: number, ez: number, qx: number, qy: number, qz: number): number =>
+    Math.sign((ey * nz - ez * ny) * qx + (ez * nx - ex * nz) * qy + (ex * ny - ey * nx) * qz);
+  const inside = side(bax, bay, baz, pax, pay, paz) + side(cbx, cby, cbz, pbx, pby, pbz) +
+    side(dcx, dcy, dcz, pcx, pcy, pcz) + side(adx, ady, adz, pdx, pdy, pdz) >= 3;
+  if (inside) {
+    const dn = nx * pax + ny * pay + nz * paz;
+    return Math.sqrt((dn * dn) / dot2(nx, ny, nz));
+  }
+  const seg = (ex: number, ey: number, ez: number, qx: number, qy: number, qz: number): number => {
+    const t = clamp((ex * qx + ey * qy + ez * qz) / dot2(ex, ey, ez), 0, 1);
+    return dot2(ex * t - qx, ey * t - qy, ez * t - qz);
+  };
+  return Math.sqrt(Math.min(
+    seg(bax, bay, baz, pax, pay, paz), seg(cbx, cby, cbz, pbx, pby, pbz),
+    seg(dcx, dcy, dcz, pcx, pcy, pcz), seg(adx, ady, adz, pdx, pdy, pdz),
+  ));
+}

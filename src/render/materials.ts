@@ -25,14 +25,17 @@ export function createLookUniforms(): LookUniforms {
 
 const toonVertex = /* glsl */ `
 attribute vec4 aColor;
+attribute float aHold;
 varying vec3 vN;
 varying vec3 vW;
 varying vec4 vC;
+varying float vHold;
 void main() {
   vec4 w = modelMatrix * vec4(position, 1.0);
   vW = w.xyz;
   vN = normalize(mat3(modelMatrix) * normal);
   vC = aColor;
+  vHold = aHold;
   gl_Position = projectionMatrix * viewMatrix * w;
 }`;
 
@@ -43,9 +46,11 @@ uniform vec3 uShadowTint;
 uniform vec3 uRim;
 uniform float uAO;
 uniform float uGrain;
+uniform float uHoldLook; // 1 for hair: firmness shows as gloss (gel) or matte grain (dried)
 varying vec3 vN;
 varying vec3 vW;
 varying vec4 vC;
+varying float vHold;
 
 float hash(vec3 p) {
   p = fract(p * 0.3183099 + 0.1);
@@ -60,9 +65,16 @@ void main() {
   float aa = fwidth(ndl) * 1.2 + 0.03;                   // slightly soft edge reads as clay
   float lit = smoothstep(-aa, aa, ndl - 0.03);           // light/shadow terminator
   float hi = smoothstep(0.72 - aa, 0.72 + aa, ndl);      // small highlight band
+  // Packed material (the default) looks as before; gel adds a wet highlight, drying goes matte.
+  float hold = mix(0.784, vHold, uHoldLook);
+  float gel = smoothstep(0.82, 1.0, hold);
+  float dry = 1.0 - smoothstep(0.3, 0.7, hold);
   vec3 base = vC.rgb;
   vec3 col = mix(base * uShadowTint, base, lit);
-  col = mix(col, min(base * 1.1 + 0.03, vec3(1.0)), hi * 0.4);
+  col = mix(col, min(base * 1.1 + 0.03, vec3(1.0)), hi * mix(0.4, 0.6, gel) * (1.0 - dry));
+  vec3 h = normalize(uLightDir + v);
+  float spec = smoothstep(0.93, 0.95, dot(n, h)) * gel;   // hard-edged toon specular
+  col = mix(col, vec3(1.0), spec * 0.75);
 
   // Clay crevices: baked ambient occlusion.
   col *= mix(1.0, vC.a, uAO);
@@ -73,17 +85,21 @@ void main() {
   col += uRim * rim * 0.22;
 
   // Packed-sand grain, fixed in world space so it does not swim.
-  if (uGrain > 0.0) {
+  float grain = max(uGrain, dry * uHoldLook);
+  if (grain > 0.0) {
     float g = hash(floor(vW * 1100.0));
-    col *= 1.0 - uGrain * (step(0.78, g) * 0.11 - step(g, 0.08) * 0.06);
+    col *= 1.0 - grain * (step(0.78, g) * 0.11 - step(g, 0.08) * 0.06);
   }
   gl_FragColor = vec4(col, 1.0);
 }`;
 
-/** `grain` overrides the shared grain uniform, so skin can stay smooth while hair is sandy. */
-export function createToonMaterial(look: LookUniforms, grain?: { value: number }): ShaderMaterial {
+/**
+ * Skin and eyes pass `hair: false`: no grain toggle and no hold-based gloss.
+ * Hair shares the grain toggle and shows gel/dryer edits.
+ */
+export function createToonMaterial(look: LookUniforms, hair: boolean): ShaderMaterial {
   return new ShaderMaterial({
-    uniforms: { ...look, uGrain: grain ?? look.uGrain },
+    uniforms: { ...look, uGrain: hair ? look.uGrain : { value: 0 }, uHoldLook: { value: hair ? 1 : 0 } },
     vertexShader: toonVertex,
     fragmentShader: toonFragment,
   });

@@ -1,5 +1,5 @@
 import type { SampleOut } from './build';
-import { mixRgb, rgb } from './color';
+import { mixRgb, pack565, rgb } from './color';
 import type { Bounds } from './grid';
 import { craniumSDF, headSDF, jawSDF } from './head';
 import type { PresetId } from './presetIds';
@@ -10,6 +10,8 @@ export interface Preset {
   label: string;
   /** Upper bound on how fast the shape's distance can change (1 for exact SDFs). */
   lipschitz: number;
+  /** Colour of new hair grown on bare scalp (RGB565). */
+  base: number;
   sample(x: number, y: number, z: number, out: SampleOut): void;
 }
 
@@ -111,9 +113,9 @@ function afro(x: number, y: number, z: number, out: SampleOut): void {
 }
 
 export const PRESETS: Record<PresetId, Preset> = {
-  quiff: { id: 'quiff', label: 'Quiff', lipschitz: 1.3, sample: quiff },
-  spikes: { id: 'spikes', label: 'Spikes', lipschitz: 1.3, sample: spikes },
-  afro: { id: 'afro', label: 'Afro', lipschitz: 2.2, sample: afro },
+  quiff: { id: 'quiff', label: 'Quiff', lipschitz: 1.3, base: pack565(...Q_MAIN), sample: quiff },
+  spikes: { id: 'spikes', label: 'Spikes', lipschitz: 1.3, base: pack565(...S_BASE), sample: spikes },
+  afro: { id: 'afro', label: 'Afro', lipschitz: 2.2, base: pack565(...A_DARK), sample: afro },
 };
 
 export const PRESET_IDS = Object.keys(PRESETS) as PresetId[];

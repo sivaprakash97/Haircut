@@ -3,3 +3,6 @@ export const EYES = [
   { x: -0.0305, y: 0.0165, z: 0.0815, r: 0.0128 },
   { x: 0.0305, y: 0.0165, z: 0.0815, r: 0.0128 },
 ] as const;
+
+/** Mouth: a short dark arc (part of a torus) drawn as its own mesh so it stays crisp at every quality. */
+export const MOUTH = { x: 0, y: -0.022, z: 0.0868, radius: 0.028, tube: 0.0021, arc: 1.05 } as const;

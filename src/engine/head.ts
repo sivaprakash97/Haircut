@@ -68,7 +68,8 @@ const sculpt = new Sculpt();
 export function sampleHead(x: number, y: number, z: number, out: SampleOut): void {
   const s = sculpt;
   s.begin();
-  const lip = Math.min(1, Math.max(0, 1 - (mouthSDF(x, y, z) - 0.0015) / 0.004));
+  // A faint lip tint around the mouth line (the line itself is a separate mesh; see MOUTH).
+  const lip = 0.45 * Math.min(1, Math.max(0, 1 - (mouthSDF(x, y, z) - 0.002) / 0.003));
   s.add(faceSDF(x, y, z), [SKIN[0] + (LIPS[0] - SKIN[0]) * lip, SKIN[1] + (LIPS[1] - SKIN[1]) * lip, SKIN[2] + (LIPS[2] - SKIN[2]) * lip]);
   if (y < -0.11) {
     // Shape blends softly; colour edges stay crisp but smooth.

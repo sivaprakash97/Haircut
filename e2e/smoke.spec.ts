@@ -10,7 +10,7 @@ for (const preset of ['quiff', 'spikes', 'afro']) {
     page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
     page.on('pageerror', (e) => errors.push(e.message));
 
-    await page.goto(`/?preset=${preset}&quality=light`);
+    await page.goto(`/?preset=${preset}&quality=light&tool=view`);
     await page.waitForFunction(() => window.__haircut?.ready === true, undefined, { timeout: 120_000 });
     const state = await page.evaluate(() => window.__haircut!.state());
     expect(state.phase).toBe('ready');
@@ -57,7 +57,7 @@ test('fits a phone screen', async ({ page }, info) => {
 });
 
 test('draws at most one frame per display frame while rotating', async ({ page }) => {
-  await page.goto('/?preset=spikes&quality=light');
+  await page.goto('/?preset=spikes&quality=light&tool=view');
   await page.waitForFunction(() => window.__haircut?.ready === true, undefined, { timeout: 120_000 });
   await page.waitForTimeout(600);
   const before = await page.evaluate(() => {

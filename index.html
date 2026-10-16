@@ -38,11 +38,15 @@
       @keyframes squish { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.12, 0.88) translateY(4px); } }
       @media (prefers-reduced-motion: reduce) { #loader svg { animation: none; } }
 
-      .panel-toggle {
-        position: fixed; top: 12px; right: 12px; z-index: 3;
+      .topbar { position: fixed; top: 12px; right: 12px; z-index: 3; display: flex; gap: 8px; align-items: center; }
+      .panel-toggle, .topbar .icon {
         font: inherit; font-weight: 600; color: var(--text); background: var(--panel);
         border: 1px solid var(--panel-line); border-radius: 999px; padding: 8px 14px; cursor: pointer;
       }
+      .history { display: flex; gap: 6px; }
+      .topbar .icon { width: 38px; height: 38px; padding: 0; display: grid; place-items: center; }
+      .topbar .icon:disabled { opacity: 0.4; cursor: default; }
+      .topbar .icon svg, .tool svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
       .panel {
         position: fixed; top: 12px; left: 12px; z-index: 2; width: 300px; max-height: calc(100% - 24px); overflow: auto;
         color: var(--text); background: var(--panel); border: 1px solid var(--panel-line); border-radius: 16px;
@@ -61,7 +65,8 @@
       .panel button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.16); }
       .panel button.on { background: var(--on); border-color: transparent; }
       .panel button:disabled { opacity: 0.5; cursor: default; }
-      .panel button:focus-visible, .panel-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+      button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+      .panel .note { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
       .panel button.primary { width: 100%; background: var(--accent); color: var(--ink); font-weight: 700; border-color: transparent; }
       .bench-result { margin-top: 8px; font-size: 13px; color: var(--muted); }
       .bench-result p { margin: 0 0 6px; }
@@ -71,23 +76,51 @@
       .stats dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; margin: 8px 0 0; font-size: 12px; }
       .stats dt { color: var(--muted); }
       .stats dd { margin: 0; overflow-wrap: anywhere; }
-      .hint {
-        position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); margin: 0; z-index: 1;
-        padding: 6px 12px; border-radius: 999px; background: rgba(255, 255, 255, 0.7); font-size: 12px; white-space: nowrap;
+      .dock {
+        position: fixed; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 2;
+        display: flex; flex-direction: column; align-items: center; gap: 8px; max-width: calc(100% - 24px);
       }
+      .toolbar {
+        display: flex; gap: 4px; padding: 6px; border-radius: 18px; max-width: 100%; overflow-x: auto;
+        background: var(--panel); border: 1px solid var(--panel-line); box-shadow: 0 10px 30px rgba(26, 18, 41, 0.25);
+      }
+      .tool {
+        flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 62px;
+        font: inherit; font-size: 11px; font-weight: 600; color: var(--muted); background: transparent;
+        border: 0; border-radius: 12px; padding: 7px 6px 6px; cursor: pointer;
+      }
+      .tool:hover { color: var(--text); background: rgba(255, 255, 255, 0.08); }
+      .tool.on { color: var(--ink); background: var(--tool); }
+      .brushbar {
+        display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px 14px; padding: 8px 12px;
+        border-radius: 14px; color: var(--text); background: var(--panel); border: 1px solid var(--panel-line); font-size: 12px;
+      }
+      .brushbar label { display: flex; align-items: center; gap: 8px; }
+      .brushbar span { color: var(--muted); }
+      .brushbar input { width: 110px; accent-color: var(--accent); }
+      .brushbar output { min-width: 42px; font-variant-numeric: tabular-nums; }
+      .brushbar button {
+        font: inherit; font-weight: 600; color: var(--text); background: rgba(255, 255, 255, 0.08);
+        border: 1px solid var(--panel-line); border-radius: 999px; padding: 5px 12px; cursor: pointer;
+      }
+      .brushbar button.on { background: var(--on); border-color: transparent; }
+      .hint { margin: 0; padding: 5px 12px; border-radius: 999px; background: rgba(255, 255, 255, 0.75); font-size: 12px; text-align: center; }
       .toast {
-        position: fixed; bottom: 52px; left: 50%; transform: translateX(-50%); z-index: 3;
+        position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 3;
         padding: 8px 14px; border-radius: 10px; background: var(--panel); color: var(--text); font-weight: 600;
       }
       .toast.error { background: #b3203f; }
       @media (max-width: 700px) {
-        .panel { top: auto; bottom: 12px; left: 12px; right: 12px; width: auto; max-height: 55%; }
+        .panel { top: 60px; left: 12px; right: 12px; width: auto; max-height: 50%; }
         .hint { display: none; }
+        .dock { width: calc(100% - 24px); }
+        .toolbar { width: 100%; }
+        .tool { min-width: 56px; }
       }
     </style>
   </head>
   <body>
-    <canvas id="scene" aria-label="3D head with sculptable hair. Drag to rotate, scroll or pinch to zoom."></canvas>
+    <canvas id="scene" aria-label="3D head with sculptable hair. Drag on the hair to use the selected tool, drag elsewhere to rotate, scroll or pinch to zoom."></canvas>
     <div id="loader" role="status">
       <svg viewBox="0 0 64 64" aria-hidden="true">
         <path d="M10 44c0-18 10-32 25-32 11 0 19 8 19 19 0 13-10 21-23 21H17c-4 0-7-3-7-8z" fill="#2f6bff" />
